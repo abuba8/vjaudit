@@ -7,5 +7,5 @@ artifacts/*
 configs/local/*.yaml
 configs/local/*.json
 .superpowers/
-data/
+/data/
 *.egg-info/

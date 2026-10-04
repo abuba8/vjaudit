@@ -47,3 +47,12 @@ def test_benchmarks_and_grid_yaml_validate():
 
 def test_local_dir_is_gitignored():
     assert "configs/local/*.yaml" in (ROOT / ".gitignore").read_text().splitlines()
+
+
+def test_source_and_test_data_packages_are_not_gitignored():
+    import subprocess
+    for p in ("src/vjaudit/data/sampling.py", "tests/data/test_sampling.py"):
+        r = subprocess.run(["git", "check-ignore", "-q", p], cwd=ROOT)
+        assert r.returncode == 1, f"{p} is gitignored"
+    r = subprocess.run(["git", "check-ignore", "-q", "data/msvd/videos/x.avi"], cwd=ROOT)
+    assert r.returncode == 0, "top-level data/ must stay ignored"
