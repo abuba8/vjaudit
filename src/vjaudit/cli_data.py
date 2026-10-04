@@ -47,3 +47,38 @@ def _merge_reports(out: Path, parts: list[Path]) -> None:
     out.write_text(text, encoding="utf-8")
     for p in parts:
         p.unlink(missing_ok=True)
+
+
+@app.command("sample")
+def sample_cmd(
+    paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+    grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
+    report: Path = typer.Option(Path("docs/samples.md")),
+) -> None:
+    """Draw main ⊃ annotated ⊃ vid samples and the dev/test split; store kind 'item'."""
+    from collections import Counter
+
+    from .data.sampling import assign_nested, split_dev_test
+    from .schemas import Item
+
+    g = load_yaml(grid, GridCfg)
+    store = ArtifactStore(load_paths(paths)["artifacts"])
+    pool = [Item(**r) for r in store.iter("item_pool")]
+    s = g.sample_sizes
+    items = split_dev_test(assign_nested(pool, (s["main"], s["annotated"], s["vid"]), g.seed, g.msvd_min_per),
+                           g.frac_dev, g.seed)
+    for it in items:
+        store.put("item", it, it.item_id)
+    lines = ["# Samples", "", f"seed {g.seed}; sizes {s}", "",
+             "| benchmark | pool | main | annotated | vid | dev | test |", "|---|---|---|---|---|---|---|"]
+    for b in sorted({i.benchmark for i in items}):
+        bi = [i for i in items if i.benchmark == b]
+        lines.append(f"| {b} | {len(bi)} | {sum(i.in_main for i in bi)} | {sum(i.in_annotated for i in bi)} | "
+                     f"{sum(i.in_vid_subset for i in bi)} | {sum(i.human_split == 'dev' for i in bi)} | "
+                     f"{sum(i.human_split == 'test' for i in bi)} |")
+    lines += ["", "## Annotated questions per type", "", "| benchmark | qtype | annotated |", "|---|---|---|"]
+    for (b, q), k in sorted(Counter((i.benchmark, i.qtype) for i in items if i.in_annotated).items()):
+        lines.append(f"| {b} | {q} | {k} |")
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    typer.echo(f"wrote {len(items)} items; report: {report}")
