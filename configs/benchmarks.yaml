@@ -1,0 +1,18 @@
+# Raw annotation file names per benchmark. Directory locations are machine-specific and
+# live in configs/local/paths.yaml (gitignored); see configs/paths.example.yaml.
+benchmarks:
+  - id: msvd
+    split: test
+    raw_dir_key: msvd_raw
+    video_dir_key: msvd_videos
+    files: {qa: test_qa.json, mapping: youtube_mapping.txt}
+  - id: anetqa
+    split: test
+    raw_dir_key: anetqa_raw
+    video_dir_key: anetqa_videos
+    files: {questions: test_q.json, answers: test_a.json}
+  - id: nextoe
+    split: test
+    raw_dir_key: nextqa_raw
+    video_dir_key: nextqa_videos
+    files: {oe: NExT-OE/test.csv, mc: NExT-QA/test.csv, vid_map: map_vid_vidorID.json}

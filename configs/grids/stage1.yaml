@@ -1,0 +1,7 @@
+name: stage1
+seed: 42
+benchmarks: [msvd, anetqa, nextoe]
+sample_sizes: {main: 2000, annotated: 300, vid: 200}
+msvd_min_per: 15
+frac_dev: 0.4
+capture_stages: []   # filled in Task 13

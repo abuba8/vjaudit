@@ -1,0 +1,46 @@
+[project]
+name = "vjaudit"
+version = "0.1.0"
+description = "Auditing and repairing LLM-judged open-ended VideoQA"
+requires-python = "==3.11.*"
+dependencies = [
+  "pydantic>=2.7,<3",
+  "pyyaml>=6",
+  "numpy>=1.26,<2.3",
+  "av>=12",
+  "pillow>=10",
+  "pandas>=2.2",
+  "openai>=1.40,<2",
+  "tiktoken>=0.7",
+  "jinja2>=3.1",
+  "typer>=0.12",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Installed only on the GPU server (see docs/GUIDE.md). Pin exact versions there with `uv lock`.
+gpu = [
+  "vllm>=0.11.0",
+  "transformers>=4.57",
+  "huggingface_hub>=0.25",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vjaudit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "gpu: needs a CUDA GPU and the gpu extra",
+  "api: makes real OpenAI API calls",
+  "legacy: needs the prior pipeline's cached artifacts (configs/local/legacy.yaml)",
+  "hf: needs Hugging Face Hub access to pinned processors",
+]

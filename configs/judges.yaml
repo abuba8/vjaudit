@@ -1,0 +1,18 @@
+# API judges for Stage 1. Prices from developers.openai.com/api/docs/models/gpt-3.5-turbo,
+# checked 2026-10-04: both snapshots list $0.50 / 1M input and $1.50 / 1M output.
+# Both snapshots shut down 2026-10-23 (developers.openai.com/api/docs/deprecations).
+judges:
+  - id: gpt-3.5-turbo-0125
+    kind: api
+    model: gpt-3.5-turbo-0125
+    max_usd: 100
+    price_in_per_mtok: 0.50
+    price_out_per_mtok: 1.50
+    concurrency: 16
+  - id: gpt-3.5-turbo-1106
+    kind: api
+    model: gpt-3.5-turbo-1106
+    max_usd: 20
+    price_in_per_mtok: 0.50
+    price_out_per_mtok: 1.50
+    concurrency: 16

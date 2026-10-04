@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+artifacts/*
+!artifacts/manifest.jsonl
+configs/local/*.yaml
+configs/local/*.json
+.superpowers/
+data/
+*.egg-info/
