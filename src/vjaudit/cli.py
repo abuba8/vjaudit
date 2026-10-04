@@ -4,9 +4,11 @@ from __future__ import annotations
 import typer
 
 from .cli_data import app as data_app
+from .cli_gen import app as gen_app
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 app.add_typer(data_app, name="data")
+app.add_typer(gen_app, name="gen")
 
 
 @app.command()

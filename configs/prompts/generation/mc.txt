@@ -1,0 +1,8 @@
+{question}
+Options:
+A. {a0}
+B. {a1}
+C. {a2}
+D. {a3}
+E. {a4}
+Answer with the option's letter from the given choices directly.

@@ -13,3 +13,6 @@ def load_paths(path: Path | str = DEFAULT_PATHS_FILE) -> dict[str, Path]:
     if not p.exists():
         raise FileNotFoundError(f"{p} not found: copy configs/paths.example.yaml to {DEFAULT_PATHS_FILE} and edit it")
     return {k: Path(v) for k, v in yaml.safe_load(p.read_text(encoding="utf-8")).items()}
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONFIGS = REPO_ROOT / "configs"
