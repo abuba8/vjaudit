@@ -15,4 +15,4 @@ benchmarks:
     split: test
     raw_dir_key: nextqa_raw
     video_dir_key: nextqa_videos
-    files: {oe: NExT-OE/test.csv, mc: NExT-QA/test.csv, vid_map: map_vid_vidorID.json}
+    files: {oe: OE/test-00000-of-00001.parquet, mc: MC/test-00000-of-00001.parquet}

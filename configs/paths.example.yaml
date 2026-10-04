@@ -1,0 +1,11 @@
+# Copy to configs/local/paths.yaml (gitignored). The download scripts in scripts/download/
+# write data to these default locations.
+msvd_raw: data/msvd/annotations
+msvd_videos: data/msvd/videos
+anetqa_raw: data/anetqa/annotations
+anetqa_videos: data/anetqa/videos
+nextqa_raw: data/nextqa/annotations
+nextqa_videos: data/nextqa/videos
+artifacts: artifacts
+frame_cache: artifacts/frames
+api_cache: artifacts/api_cache
