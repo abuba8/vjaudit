@@ -38,3 +38,10 @@ throughput:
 # Dry run by default (prints per-stage cost estimates). Real run: make capture-gpt35 CONFIRM=1 [STAGES=S1,S2]
 capture-gpt35:
 	uv run python -m vjaudit.cli judge capture $(if $(STAGES),--stages $(STAGES),) $(if $(CONFIRM),--confirm,)
+
+.PHONY: freeze sp0-report
+freeze:
+	uv run python scripts/freeze_stage1.py
+
+sp0-report:
+	uv run python scripts/sp0_report.py configs/local/legacy.yaml docs/sp0_report.md
