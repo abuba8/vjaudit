@@ -33,3 +33,8 @@ generate-mc:
 
 throughput:
 	uv run python scripts/throughput.py --n 50
+
+.PHONY: capture-gpt35
+# Dry run by default (prints per-stage cost estimates). Real run: make capture-gpt35 CONFIRM=1 [STAGES=S1,S2]
+capture-gpt35:
+	uv run python -m vjaudit.cli judge capture $(if $(STAGES),--stages $(STAGES),) $(if $(CONFIRM),--confirm,)

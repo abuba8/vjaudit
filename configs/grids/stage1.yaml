@@ -4,4 +4,25 @@ benchmarks: [msvd, anetqa, nextoe]
 sample_sizes: {main: 2000, annotated: 300, vid: 200}
 msvd_min_per: 15
 frac_dev: 0.4
-capture_stages: []   # filled in Task 13
+# GPT-3.5 capture stages, run strictly in this order (plan Task 13). core = the 9 non-ablation systems.
+capture_stages:
+  - {name: S1, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S2, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: core, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S3, judge_id: gpt-3.5-turbo-0125, subset: main, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S4, judge_id: gpt-3.5-turbo-0125, subset: main, systems: core, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S5, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: core, template: t-vcg, decoding_tag: default-n3,
+     request: {temperature: null, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 3}}
+  - {name: S6a, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: ablation, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S6b, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: ablation, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S6c, judge_id: gpt-3.5-turbo-0125, subset: main, systems: ablation, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S6d, judge_id: gpt-3.5-turbo-0125, subset: main, systems: ablation, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: S7, judge_id: gpt-3.5-turbo-1106, subset: annotated, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}

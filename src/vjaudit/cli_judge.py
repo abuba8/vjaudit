@@ -45,3 +45,68 @@ def vendor_rub_cmd(prior: Path = typer.Option(..., help="prior repo src/Prompts/
     text = vendor_rub(prior, mapping, out)
     _update_source(source, "t-rub", upstream_commit=commit, verified=True)
     typer.echo(text)
+
+
+def _groups(gens) -> dict[str, set[str]]:
+    from .generate.systems import expand_systems
+
+    ablation = {f"{g.id}-f{k}" for g in gens for k in g.frame_ablation}
+    judged = {s.system_id for b in ("msvd", "anetqa", "nextoe") for s in expand_systems(gens, b)}
+    return {"core": judged - ablation, "ablation": ablation}
+
+
+@app.command("capture")
+def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (default: all, in order)"),
+                confirm: bool = typer.Option(False, help="actually call the API (otherwise: dry run with estimates)"),
+                allow_unverified: bool = typer.Option(False, help="run even if a template's provenance is unverified"),
+                paths: Path = typer.Option(Path("configs/local/paths.yaml")),
+                grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
+                judges: Path = typer.Option(Path("configs/judges.yaml")),
+                report: Path = typer.Option(Path("docs/gpt35_capture.md"))) -> None:
+    """Capture GPT-3.5 verdicts + logprobs in the pinned stage order (dry run unless --confirm)."""
+    import asyncio
+
+    from .config import GeneratorsFile, GridCfg, JudgesFile, load_yaml
+    from .judge.api_openai import OpenAIJudgeClient
+    from .judge.capture import build_jobs, load_stages, run_capture, write_capture_report
+    from .judge.templates import render_rub, render_vcg, template_source
+    from .paths import CONFIGS, load_paths
+    from .schemas import Item
+    from .store import ArtifactStore
+
+    all_stages = load_stages(load_yaml(grid, GridCfg))
+    wanted = [s for s in stages.split(",") if s] or [s.name for s in all_stages]
+    chosen = [s for s in all_stages if s.name in wanted]
+    for t in sorted({s.template for s in chosen}):
+        if not template_source(t)["verified"] and not allow_unverified:
+            typer.echo(f"{t} is not verified (configs/prompts/judge/source.yaml); see docs/GUIDE.md "
+                       "'Verify the judge prompts', or pass --allow-unverified")
+            raise typer.Exit(2)
+    p = load_paths(paths)
+    store = ArtifactStore(p["artifacts"])
+    items = [Item(**r) for r in store.iter("item")]
+    gens = load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators
+    groups = _groups(gens)
+    cfgs = {j.id: j for j in load_yaml(judges, JudgesFile).judges}
+    clients = {jid: OpenAIJudgeClient(cfgs[jid], p["api_cache"]) for jid in {s.judge_id for s in chosen}}
+    jobs = build_jobs(store, chosen, items, groups)
+    total = 0.0
+    for st in chosen:
+        sj = [j for j in jobs if j.stage.name == st.name]
+        render = render_vcg if st.template == "t-vcg" else render_rub
+        r = st.request
+        reqs = [clients[st.judge_id].build_request(render(j.item.question, j.item.answers_ref[0], j.gen["output_text"]),
+                                                   max_tokens=r["max_tokens"], temperature=r.get("temperature"),
+                                                   logprobs=r["logprobs"], top_logprobs=r["top_logprobs"],
+                                                   n=r.get("n", 1)) for j in sj]
+        est = clients[st.judge_id].estimate_cost(reqs) if reqs else 0.0
+        total += est
+        typer.echo(f"{st.name}: {len(sj)} jobs, estimated ≤ {est:.2f} USD ({st.judge_id}, {st.template}/{st.decoding_tag})")
+    typer.echo(f"TOTAL estimated ≤ {total:.2f} USD")
+    if not confirm:
+        typer.echo("dry run: nothing sent. Re-run with --confirm to call the API.")
+        return
+    summary = asyncio.run(run_capture(store, clients, jobs))
+    write_capture_report(store, chosen, items, groups, report)
+    typer.echo(f"captured {summary.done} calls; spent {summary.spent_usd:.2f} USD; "
+               f"{summary.stopped_reason or 'completed'}; report: {report}")
