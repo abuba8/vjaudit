@@ -30,3 +30,96 @@ def render_golden_cmd(out_dir: Path = typer.Option(Path("tests/generate/golden")
             text = golden_render(family, mode)
             (out_dir / f"{family}_{mode}.txt").write_text(text, encoding="utf-8")
             typer.echo(f"--- {family} / {mode} ---\n{text}\n")
+
+
+def _load(paths: Path):
+    from .config import GeneratorsFile, load_yaml
+    from .paths import load_paths
+    from .schemas import Item
+    from .store import ArtifactStore
+
+    p = load_paths(paths)
+    store = ArtifactStore(p["artifacts"])
+    items = [Item(**r) for r in store.iter("item")]
+    gens = load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators
+    return p, store, items, gens
+
+
+from .paths import DEFAULT_PATHS_FILE  # noqa: E402
+
+
+@app.command("run")
+def run_cmd(subset: str = typer.Option(..., help="annotated | main"), mc: bool = typer.Option(False),
+            shard: int = typer.Option(0), num_shards: int = typer.Option(1), batch_size: int = typer.Option(16),
+            paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+    """Generate every missing (item, system) for this shard's generators (vLLM, GPU)."""
+    from .data.frames import FrameCache
+    from .generate.adapters import HFChatRenderer
+    from .generate.coverage import run_subset
+    from .generate.engine import VllmEngine
+
+    p, store, items, gens = _load(paths)
+    n = run_subset(store, items, gens, subset, engine_factory=VllmEngine,
+                   renderer_factory=lambda g: HFChatRenderer(g.hf_repo, g.revision, g.family),
+                   frame_cache=FrameCache(p["frame_cache"]), mc=mc, shard=shard, num_shards=num_shards,
+                   batch_size=batch_size)
+    typer.echo(f"shard {shard}/{num_shards}: {n} new generations")
+
+
+@app.command("coverage")
+def coverage_cmd(subset: str = typer.Option(...), mc: bool = typer.Option(False),
+                 paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+    """Print missing (item, system) pairs per benchmark and system."""
+    from .generate.coverage import coverage, select
+    from .generate.systems import expand_mc_systems, expand_systems
+
+    _, store, items, gens = _load(paths)
+    chosen = select(items, subset, mc)
+    total = 0
+    for b in sorted({i.benchmark for i in chosen}):
+        systems = [s.system_id for s in (expand_mc_systems(gens) if mc else expand_systems(gens, b))]
+        for sid, missing in coverage(store, [i for i in chosen if i.benchmark == b], systems).items():
+            typer.echo(f"{b} {sid} missing {missing}")
+            total += missing
+    typer.echo(f"TOTAL missing {total}")
+
+
+@app.command("rerun-check")
+def rerun_check_cmd(system: str = typer.Option(...), n: int = typer.Option(50), benchmark: str = typer.Option("msvd"),
+                    paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+    """Regenerate n items for one system into a scratch store and compare outputs (SP2 acceptance)."""
+    import tempfile
+
+    from .data.frames import FrameCache
+    from .generate.adapters import HFChatRenderer, get_adapter
+    from .generate.coverage import rerun_check
+    from .generate.engine import VllmEngine
+    from .generate.systems import expand_systems
+
+    p, store, items, gens = _load(paths)
+    spec = next(s for s in expand_systems(gens, benchmark) if s.system_id == system)
+    gen = next(g for g in gens if g.id == spec.generator_id)
+    adapter = get_adapter(gen.family, HFChatRenderer(gen.hf_repo, gen.revision, gen.family))
+    same, total, mism = rerun_check(store, [i for i in items if i.benchmark == benchmark], spec, VllmEngine(gen),
+                                    FrameCache(p["frame_cache"]), gen, adapter, n, Path(tempfile.mkdtemp()))
+    typer.echo(f"{same}/{total} identical")
+    for iid, old, new in mism:
+        typer.echo(f"MISMATCH {iid}: {old!r} != {new!r}")
+    raise typer.Exit(0 if same == total else 1)
+
+
+@app.command("mc-report")
+def mc_report_cmd(out: Path = typer.Option(Path("docs/mc_anchor.md")),
+                  paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+    """Write the judge-free NExT MC-anchor accuracy table."""
+    from .generate.coverage import mc_accuracy
+    from .generate.systems import expand_mc_systems
+
+    _, store, items, gens = _load(paths)
+    acc = mc_accuracy(store, items, [s.system_id for s in expand_mc_systems(gens)])
+    lines = ["# NExT-QA multiple-choice anchor (exact match, no judge)", "",
+             "| system | n | accuracy | unparseable |", "|---|---|---|---|"]
+    lines += [f"| {s} | {v['n']} | {v['acc']:.3f} | {v['unparseable']} |" for s, v in sorted(acc.items())]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    typer.echo(f"wrote {out}")

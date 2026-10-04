@@ -9,3 +9,4 @@ configs/local/*.json
 .superpowers/
 /data/
 *.egg-info/
+logs/
