@@ -1,0 +1,9 @@
+prompts_dir: tests/fixtures/legacy/prompts
+inference_py: []
+legacy_quantization: "4-bit (per prior README)"
+consensus:
+  nextqa: {path: tests/fixtures/legacy/consensus_nextqa.csv, key_field: idx, label_field: consensus, yes_values: ["Yes"]}
+cells:
+  - {dataset: nextqa, split: test, frames: 4, condition: zero, set: null, gen_path: tests/fixtures/legacy/nextqa_test_zero_gen.json, judge_path: tests/fixtures/legacy/nextqa_test_zero_judge.json}
+  - {dataset: nextqa, split: test, frames: 4, condition: one, set: S1, gen_path: tests/fixtures/legacy/nextqa_test_one_S1_gen.json, judge_path: tests/fixtures/legacy/nextqa_test_one_S1_judge.json}
+  - {dataset: nextqa, split: val, frames: 4, condition: few, set: S2, gen_path: tests/fixtures/legacy/nextqa_val_few_S2_gen.json, judge_path: tests/fixtures/legacy/nextqa_val_few_S2_judge.json}

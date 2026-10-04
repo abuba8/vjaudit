@@ -2822,6 +2822,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "tabulate" },
     { name = "tiktoken" },
     { name = "typer" },
 ]
@@ -2851,6 +2852,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10" },
     { name = "pydantic", specifier = ">=2.7,<3" },
     { name = "pyyaml", specifier = ">=6" },
+    { name = "tabulate", specifier = ">=0.10.0" },
     { name = "tiktoken", specifier = ">=0.7" },
     { name = "transformers", marker = "extra == 'gpu'", specifier = ">=4.57" },
     { name = "typer", specifier = ">=0.12" },

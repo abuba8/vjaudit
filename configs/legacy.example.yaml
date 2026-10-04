@@ -1,0 +1,15 @@
+# Copy to configs/local/legacy.yaml (gitignored) on the machine that holds the prior
+# pipeline's outputs, and fill in real paths. One `cells` entry per (dataset, split,
+# frames, condition, set). Generation/judge JSONs use the prior repo's format.
+prompts_dir: /path/to/prior-repo/src/Prompts
+inference_py:
+  - /path/to/prior-repo/src/next_qa/inference.py
+  - /path/to/prior-repo/src/msvd_qa/inference.py
+legacy_quantization: "4-bit (per prior README)"
+consensus:   # 200-sample human consensus per dataset (validation split)
+  nextqa: {path: /path/to/prior-repo/annotations/nextqa_consensus.csv, key_field: idx, label_field: consensus, yes_values: ["Yes"]}
+  msvd:   {path: /path/to/prior-repo/annotations/msvd_consensus.csv,   key_field: idx, label_field: consensus, yes_values: ["Yes"]}
+cells:
+  - {dataset: nextqa, split: test, frames: 4, condition: zero, set: null, gen_path: /path/gen.json, judge_path: /path/judge.json}
+  - {dataset: nextqa, split: test, frames: 4, condition: one,  set: S1,   gen_path: /path/gen.json, judge_path: /path/judge.json}
+  # ... all 80 cells + zero-shot baselines, val and test

@@ -14,3 +14,8 @@ or an integrity finding (contract §0 item 5).
 - `JudgeCall.sample_idx`, `decoding`, `api_model_returned`, `system_fingerprint`, `raw_text`.
 - `JudgeCall.vcg_score` is `float | None` (contract said int; the official T-VCG prompt's example emits 4.8).
 - Every record carries `config_hash`, `git_sha`, `created_at` as schema fields (base class `Record`).
+
+## 2026-10-04 — SP0 (R-SP0-02/03) — PENDING
+- Tooling ready (`scripts/sp0_report.py`). Outcome (a) cache reuse / (b) exemplars never reached the
+  generator / (c) other must be recorded here after running on the machine with the legacy outputs.
+  If (b): Gate G0 — notify all authors; record their decision on a BlackboxNLP correction.
