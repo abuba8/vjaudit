@@ -1,0 +1,11 @@
+# Provenance of judge templates. Capture refuses a template whose provenance is not confirmed
+# unless --allow-unverified is passed (see docs/GUIDE.md, "Verify the judge prompts").
+t-vcg:
+  upstream_repo: mbzuai-oryx/Video-ChatGPT
+  upstream_path: quantitative_evaluation/evaluate_activitynet_qa.py
+  upstream_commit: UNVERIFIED        # set by `vjaudit.cli judge verify-vcg`
+  verified: false
+t-rub:
+  upstream: "prior BlackboxNLP repo: src/Prompts/LLM_as_judge_base.j2 (zero-shot form)"
+  upstream_commit: UNVERIFIED        # set by `vjaudit.cli judge vendor-rub`
+  verified: false                    # t_rub.txt is a reconstruction from the paper until vendored

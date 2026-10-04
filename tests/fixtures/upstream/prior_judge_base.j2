@@ -1,0 +1,6 @@
+You are a strict evaluator. Compare the generated answer with the ground truth.
+Question: {{ q }}
+Ground truth: {{ gt }}
+Generated answer: {{ gen }}
+{% for ex in examples %}Example: {{ ex }}
+{% endfor %}Classify as Direct Match, Indirect Context, or Different Context. Direct Match and Indirect Context mean Yes; Different Context means No.

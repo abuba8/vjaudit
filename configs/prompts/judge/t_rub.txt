@@ -1,0 +1,12 @@
+You are evaluating an answer to a question about a video. Compare the generated answer with the ground-truth answer.
+
+Question: {question}
+Ground-truth answer: {answer}
+Generated answer: {pred}
+
+Classify the generated answer into one of three classes:
+- Direct Match: it states the same answer as the ground truth.
+- Indirect Context: it conveys the ground-truth answer in different words or with extra context.
+- Different Context: it gives a different or incorrect answer.
+Direct Match and Indirect Context count as Yes; Different Context counts as No.
+Answer with a single word: Yes or No.
