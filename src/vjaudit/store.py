@@ -38,7 +38,7 @@ class ArtifactStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self._keys: dict[str, set[str]] = {}
         self._handles: dict[str, object] = {}
-        for kind_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
+        for kind_dir in sorted(p for p in self.root.iterdir() if p.is_dir() and ".archived-" not in p.name):
             self._keys[kind_dir.name] = {row["key"] for row in self._read_kind(kind_dir.name)}
 
     # -- reading -------------------------------------------------------------
@@ -92,6 +92,17 @@ class ArtifactStore:
         os.fsync(f.fileno())
         keys.add(key)
         return True
+
+    def archive(self, kind: str) -> Path:
+        """Move a derived kind aside (``<kind>.archived-<UTC>``) so it can be rebuilt; nothing is deleted."""
+        f = self._handles.pop(kind, None)
+        if f is not None:
+            f.close()
+        stamp_ = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dst = self.root / f"{kind}.archived-{stamp_}"
+        (self.root / kind).rename(dst)
+        self._keys.pop(kind, None)
+        return dst
 
     def close(self) -> None:
         for f in self._handles.values():

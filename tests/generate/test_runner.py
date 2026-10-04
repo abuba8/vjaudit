@@ -86,3 +86,23 @@ def test_gen_id_depends_on_prompt_and_config(tmp_path, gens, items):
     gen2 = gen.model_copy(update={"revision": "abc123"})
     run_generation(s2, items[:1], spec, FakeEngine(lambda r: "x"), FakeFrameCache(), gen2, adapter)
     assert next(s1.iter("generation"))["gen_id"] != next(s2.iter("generation"))["gen_id"]
+
+
+def test_undecodable_video_is_skipped_and_logged_not_fatal(tmp_path, gens, items, caplog):
+    import logging
+
+    from vjaudit.data.frames import FrameDecodeError
+
+    gen, spec, adapter = _setup(gens)
+
+    class BadOne(FakeFrameCache):
+        def get(self, video_path, video_id, n, t_start, t_end):
+            if video_id == "vid1":
+                raise FrameDecodeError("vid1: cannot decode")
+            return super().get(video_path, video_id, n, t_start, t_end)
+
+    store = ArtifactStore(tmp_path)
+    with caplog.at_level(logging.WARNING):
+        new = run_generation(store, items[:3], spec, FakeEngine(lambda r: "x"), BadOne(), gen, adapter)
+    assert new == 2 and "vid1" in caplog.text
+    assert {r["item_id"] for r in store.iter("generation")} == {"msvd:test:0", "msvd:test:2"}

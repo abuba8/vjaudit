@@ -88,7 +88,7 @@ bash scripts/download/download_all.sh                     # everything (Activity
 bash scripts/download/download_msvd.sh                    # needs megatools (apt/brew install megatools)
 bash scripts/download/download_nextqa.sh                  # needs the HF CLI (installed with --extra gpu)
 bash scripts/download/download_anetqa.sh                  # needs git, HF CLI, unzip, ~260 GB free
-# annotations only (fast; useful to start sampling while videos download):
+# annotations only (fast; for inspecting the files — run Step 4 only after the videos finish):
 bash scripts/download/download_all.sh --annotations-only
 ```
 
@@ -133,7 +133,7 @@ make data-sample    # = vjaudit.cli data sample → docs/samples.md
 
 `data-check` loads all three benchmarks, finds each item's video (recursive search by file name), and
 checks it decodes. It stores the pool as records of kind `item_pool`. Missing or undecodable videos are
-**listed, never silently dropped**. It prints `WARNING: <benchmark> has N available items < main sample 2000`
+**listed, never silently dropped**. If more videos arrive later, re-run with `--force`: the old pool is archived (`artifacts/item_pool.archived-<time>`) and rebuilt. Likewise `data sample --force` re-samples. It prints `WARNING: <benchmark> has N available items < main sample 2000`
 if a benchmark cannot fill its sample; that means a video-download problem to fix first.
 
 `data-sample` draws, per benchmark (seed 42):
@@ -461,6 +461,9 @@ uv run pytest -m api -k live_smoke           # one real GPT-3.5 call (needs OPEN
 | Symptom | Cause / fix |
 |---|---|
 | `configs/local/paths.yaml not found` | Step 1 |
+| `'item_pool' already exists … re-run with --force` | intended: derived pools are rebuilt, not mixed; add `--force` |
+| `FAILED <stage> <gen_id>: 400 …` after capture | that request failed for good (e.g. content filter); the rest continued; re-run to retry |
+| `… skipped: <video_id>: cannot decode` in generation logs | that video fails a full decode; the item stays missing in `gen coverage`; fix or replace the file and re-run |
 | `WARNING: anetqa has N available items < main sample 2000` | videos missing or not extracted; see `docs/data_availability.md` |
 | `VllmEngine … revision is UNPINNED` | run `gen pin-revisions` (Step 5) |
 | `t-vcg is not verified` | Step 8 |

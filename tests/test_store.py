@@ -85,3 +85,14 @@ def test_stamp_adds_provenance_fields():
     out = stamp({"x": 1}, {"n_frames": 16})
     assert set(out) == {"x", "config_hash", "git_sha", "created_at"}
     assert len(out["config_hash"]) == 64 and out["created_at"].endswith("+00:00")
+
+
+def test_archive_moves_kind_aside_and_clears_keys(tmp_path):
+    s = ArtifactStore(tmp_path)
+    g = make_generation()
+    s.put("item_pool", g, "k")
+    moved = s.archive("item_pool")
+    assert moved.exists() and moved.name.startswith("item_pool.archived-")
+    assert not s.has("item_pool", "k") and list(s.iter("item_pool")) == []
+    assert s.put("item_pool", g, "k") is True
+    assert not ArtifactStore(tmp_path).has("item_pool.archived", "k")

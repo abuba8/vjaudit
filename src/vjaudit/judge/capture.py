@@ -12,7 +12,7 @@ from vjaudit.hashing import short_id
 from vjaudit.schemas import Item, JudgeCall
 from vjaudit.store import ArtifactStore, stamp
 
-from .api_openai import BudgetExceeded, ModelRetired, OpenAIJudgeClient
+from .api_openai import BudgetExceeded, ModelRetired, OpenAIJudgeClient, TransportError
 from .parse import parse_vcg, parse_yes_no
 from .readout import p_yes, readout_first_token, readout_vcg
 from .templates import load_template, protocol_id, render_rub, render_vcg
@@ -50,6 +50,8 @@ class Job:
 @dataclass
 class CaptureSummary:
     done: int = 0
+    failed: int = 0
+    errors: list = field(default_factory=list)
     per_stage: dict = field(default_factory=dict)
     stopped_reason: str = ""
     spent_usd: float = 0.0
@@ -135,6 +137,10 @@ async def run_capture(store: ArtifactStore, clients: dict[str, OpenAIJudgeClient
                                        return_exceptions=True)
         stop = None
         for j, res in zip(batch, results):
+            if isinstance(res, TransportError):  # this request failed for good: record it, keep going
+                summary.failed += 1
+                summary.errors.append(f"{j.stage.name} {j.gen['gen_id']}: {res}")
+                continue
             if isinstance(res, BaseException):
                 stop = stop or res
                 continue

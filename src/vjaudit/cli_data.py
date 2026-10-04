@@ -20,11 +20,13 @@ def check_availability_cmd(
     benchmarks: Path = typer.Option(Path("configs/benchmarks.yaml")),
     report: Path = typer.Option(Path("docs/data_availability.md")),
     grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
+    force: bool = typer.Option(False, help="rebuild: archive the existing pool first"),
 ) -> None:
     """Load every benchmark, resolve + probe its videos, store the pool as kind 'item_pool'."""
     p = load_paths(paths)
     cfg = load_yaml(benchmarks, BenchmarksFile)
     store = ArtifactStore(p["artifacts"])
+    _guard_rebuild(store, "item_pool", force)
     items = []
     for b in cfg.benchmarks:
         loaded = load_benchmark(b.id, p[b.raw_dir_key], b.split)
@@ -42,6 +44,16 @@ def check_availability_cmd(
     typer.echo(f"{len(items)} items, {n_ok} available; report: {report}")
 
 
+def _guard_rebuild(store: ArtifactStore, kind: str, force: bool) -> None:
+    """Derived pools are rebuilt, not appended to: refuse to mix runs unless --force archives the old one."""
+    if not any(True for _ in store.iter(kind)):
+        return
+    if not force:
+        typer.echo(f"'{kind}' already exists in {store.root}; re-run with --force to archive it and rebuild")
+        raise typer.Exit(1)
+    typer.echo(f"archived previous '{kind}' to {store.archive(kind)}")
+
+
 def _merge_reports(out: Path, parts: list[Path]) -> None:
     text = "\n".join(p.read_text(encoding="utf-8") for p in parts if p.exists())
     out.write_text(text, encoding="utf-8")
@@ -54,6 +66,7 @@ def sample_cmd(
     paths: Path = typer.Option(DEFAULT_PATHS_FILE),
     grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
     report: Path = typer.Option(Path("docs/samples.md")),
+    force: bool = typer.Option(False, help="re-sample: archive the existing items first"),
 ) -> None:
     """Draw main ⊃ annotated ⊃ vid samples and the dev/test split; store kind 'item'."""
     from collections import Counter
@@ -63,6 +76,7 @@ def sample_cmd(
 
     g = load_yaml(grid, GridCfg)
     store = ArtifactStore(load_paths(paths)["artifacts"])
+    _guard_rebuild(store, "item", force)
     pool = [Item(**r) for r in store.iter("item_pool")]
     s = g.sample_sizes
     items = split_dev_test(assign_nested(pool, (s["main"], s["annotated"], s["vid"]), g.seed, g.msvd_min_per),

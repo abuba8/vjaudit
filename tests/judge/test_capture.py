@@ -162,3 +162,20 @@ async def test_s7_uses_1106_client(tmp_path):
     assert len(rows) == 4 and all(r["judge_id"] == "gpt-3.5-turbo-1106" for r in rows)
     # identical requests (same question, same answer text) are served from the cache, not re-sent
     assert len(t1.calls) == 2
+
+
+async def test_one_failing_request_is_recorded_and_capture_continues(tmp_path):
+    store, items = _store(tmp_path)
+
+    class Flaky(Transport):
+        async def __call__(self, req):
+            if "what is 0?" in req["messages"][-1]["content"]:
+                self.calls.append(req)
+                raise TransportError(400, "content_filter", "rejected")
+            return await super().__call__(req)
+
+    t = Flaky()
+    clients = {"gpt-3.5-turbo-0125": OpenAIJudgeClient(jc("gpt-3.5-turbo-0125"), tmp_path / "c", transport=t)}
+    summary = await run_capture(store, clients, build_jobs(store, STAGES[:1], items, GROUPS))
+    assert summary.stopped_reason == "" and summary.failed == 2 and summary.done == 2
+    assert any("content_filter" in e for e in summary.errors)

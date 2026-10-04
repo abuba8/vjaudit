@@ -108,5 +108,7 @@ def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (def
         return
     summary = asyncio.run(run_capture(store, clients, jobs))
     write_capture_report(store, chosen, items, groups, report)
-    typer.echo(f"captured {summary.done} calls; spent {summary.spent_usd:.2f} USD; "
-               f"{summary.stopped_reason or 'completed'}; report: {report}")
+    for e in summary.errors[:50]:
+        typer.echo(f"FAILED {e}")
+    typer.echo(f"captured {summary.done} calls; {summary.failed} failed (re-run to retry them); spent "
+               f"{summary.spent_usd:.2f} USD; {summary.stopped_reason or 'completed'}; report: {report}")

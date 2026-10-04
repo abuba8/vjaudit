@@ -1,9 +1,11 @@
 """Run one system over a list of items; one Generation per (item, system); resumable."""
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 
 from vjaudit.config import GeneratorCfg
+from vjaudit.data.frames import FrameDecodeError
 from vjaudit.hashing import config_hash, short_id
 from vjaudit.normalize import normalize_answer
 from vjaudit.schemas import Generation, Item
@@ -13,6 +15,7 @@ from .adapters import Adapter, load_prompt
 from .engine import Engine
 from .systems import SystemSpec
 
+log = logging.getLogger(__name__)
 MAX_NEW_TOKENS = {"short": 128, "sentence": 256, "mc": 8}
 
 
@@ -31,14 +34,22 @@ def run_generation(store: ArtifactStore, items: list[Item], spec: SystemSpec, en
     new = 0
     for b in range(0, len(todo), batch_size):
         batch = todo[b:b + batch_size]
-        reqs, indices = [], []
-        for it, _ in batch:
+        reqs, indices, kept = [], [], []
+        for it, gid in batch:
             if spec.blind:
                 frames, idx = None, []
             else:
-                frames, idx = frame_cache.get(it.video_path, it.video_id, spec.n_frames, it.t_start, it.t_end)
+                try:
+                    frames, idx = frame_cache.get(it.video_path, it.video_id, spec.n_frames, it.t_start, it.t_end)
+                except FrameDecodeError as e:  # skip this item, keep the run going; coverage shows the gap
+                    log.warning("%s %s skipped: %s", spec.system_id, it.item_id, e)
+                    continue
             reqs.append(adapter.build_request(it, frames, spec))
             indices.append(list(idx))
+            kept.append((it, gid))
+        if not reqs:
+            continue
+        batch = kept
         outs = engine.generate(reqs, cfg["decoding"]["max_new_tokens"])
         for (it, gid), idx, (text, n_tok) in zip(batch, indices, outs):
             rec = Generation(**stamp(dict(
