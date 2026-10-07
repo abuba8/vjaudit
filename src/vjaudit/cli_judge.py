@@ -80,25 +80,29 @@ def smoke_cmd(allow_unpinned: bool = typer.Option(False, help="allow UNPINNED ju
 
 
 @app.command("capture")
-def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (default: all, in order)"),
-                confirm: bool = typer.Option(False, help="actually call the API (otherwise: dry run with estimates)"),
+def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. M1,M2 (default: every non-optional stage, "
+                                                    "in order)"),
+                confirm: bool = typer.Option(False, help="actually run the judges (otherwise: dry run with estimates)"),
                 allow_unverified: bool = typer.Option(False, help="run even if a template's provenance is unverified"),
+                allow_unpinned: bool = typer.Option(False, help="allow UNPINNED local judge revisions (tests only)"),
                 paths: Path = typer.Option(DEFAULT_PATHS_FILE),
                 profile: str = typer.Option(None, help=PROFILE_HELP),
                 report: Path = typer.Option(None, help="default: docs/capture_<profile>.md")) -> None:
     """Capture judge verdicts + logprobs in the profile's stage order (dry run unless --confirm)."""
     import asyncio
 
-    from .judge.api_openai import OpenAIJudgeClient
-    from .judge.capture import build_jobs, load_stages, run_capture, write_capture_report
+    from .judge.capture import build_jobs, load_stages, run_capture, select_stages, write_capture_report
+    from .judge.factory import make_client
     from .judge.templates import render_rub, render_vcg, template_source
     from .schemas import Item
 
     prof = open_profile(profile, paths)
     report = report or profile_doc(prof, "capture")
-    all_stages = load_stages(prof.grid)
-    wanted = [s for s in stages.split(",") if s] or [s.name for s in all_stages]
-    chosen = [s for s in all_stages if s.name in wanted]
+    try:
+        chosen = select_stages(load_stages(prof.grid), [s for s in stages.split(",") if s])
+    except ValueError as e:
+        typer.echo(str(e))
+        raise typer.Exit(2) from e
     for t in sorted({s.template for s in chosen}):
         if not template_source(t)["verified"] and not allow_unverified:
             typer.echo(f"{t} is not verified (configs/prompts/judge/source.yaml); see docs/GUIDE.md "
@@ -107,23 +111,27 @@ def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (def
     store = prof.store()
     items = [Item(**r) for r in store.iter("item")]
     groups = _groups(prof.generators)
-    clients = {jid: OpenAIJudgeClient(prof.judge(jid), prof.api_cache) for jid in {s.judge_id for s in chosen}}
+    clients = {jid: make_client(prof.judge(jid), prof.api_cache, allow_unpinned=allow_unpinned)
+               for jid in {s.judge_id for s in chosen}}
     jobs = build_jobs(store, chosen, items, groups)
     total = 0.0
     for st in chosen:
         sj = [j for j in jobs if j.stage.name == st.name]
-        render = render_vcg if st.template == "t-vcg" else render_rub
-        r = st.request
-        reqs = [clients[st.judge_id].build_request(render(j.item.question, j.item.answers_ref[0], j.gen["output_text"]),
-                                                   max_tokens=r["max_tokens"], temperature=r.get("temperature"),
-                                                   logprobs=r["logprobs"], top_logprobs=r["top_logprobs"],
-                                                   n=r.get("n", 1)) for j in sj]
-        est = clients[st.judge_id].estimate_cost(reqs) if reqs else 0.0
+        client = clients[st.judge_id]
+        est = 0.0
+        if sj and client.cfg.backend != "transformers":  # local judges cost nothing
+            render = render_vcg if st.template == "t-vcg" else render_rub
+            r = st.request
+            reqs = [client.build_request(render(j.item.question, j.item.answers_ref[0], j.gen["output_text"]),
+                                         max_tokens=r["max_tokens"], temperature=r.get("temperature"),
+                                         logprobs=r["logprobs"], top_logprobs=r["top_logprobs"], n=r.get("n", 1))
+                    for j in sj]
+            est = client.estimate_cost(reqs)
         total += est
         typer.echo(f"{st.name}: {len(sj)} jobs, estimated ≤ {est:.2f} USD ({st.judge_id}, {st.template}/{st.decoding_tag})")
     typer.echo(f"TOTAL estimated ≤ {total:.2f} USD")
     if not confirm:
-        typer.echo("dry run: nothing sent. Re-run with --confirm to call the API.")
+        typer.echo("dry run: nothing sent. Re-run with --confirm to run the judges.")
         return
     summary = asyncio.run(run_capture(store, clients, jobs))
     write_capture_report(store, chosen, items, groups, report)

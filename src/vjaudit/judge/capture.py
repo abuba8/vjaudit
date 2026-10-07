@@ -1,4 +1,4 @@
-"""GPT-3.5 capture: stages in a fixed priority order → JudgeCall records (plan Task 13)."""
+"""Judge capture: stages in a fixed priority order → JudgeCall records (API judges or local judges)."""
 from __future__ import annotations
 
 import asyncio
@@ -29,6 +29,7 @@ class CaptureStage:
     template: Literal["t-vcg", "t-rub"]
     decoding_tag: str
     request: dict
+    optional: bool = False  # runs only when named in --stages
 
     @property
     def protocol_id(self) -> str:
@@ -37,6 +38,16 @@ class CaptureStage:
 
 def load_stages(grid: GridCfg) -> list[CaptureStage]:
     return [CaptureStage(**s) for s in grid.capture_stages]
+
+
+def select_stages(stages: list[CaptureStage], names: list[str]) -> list[CaptureStage]:
+    """No names: every non-optional stage. Names: exactly those stages, in config order."""
+    if not names:
+        return [s for s in stages if not s.optional]
+    unknown = [n for n in names if n not in {s.name for s in stages}]
+    if unknown:
+        raise ValueError(f"unknown stage(s) {', '.join(unknown)}; stages are {', '.join(s.name for s in stages)}")
+    return [s for s in stages if s.name in names]
 
 
 @dataclass
@@ -107,7 +118,8 @@ def _records(job: Job, client: OpenAIJudgeClient, resp: dict) -> list[JudgeCall]
         status = _status(pstat, "api_no_logprob" if margin is None else "ok")
         decoding = {kk: v for kk, v in st.request.items() if v is not None}
         rec = dict(judge_call_id=job.judge_call_ids[k], gen_id=job.gen["gen_id"], judge_id=st.judge_id,
-                   judge_rev=client.cfg.model, protocol_id=st.protocol_id, demo_set_id=None, input_mode=INPUT_MODE,
+                   judge_rev=client.cfg.revision if client.cfg.backend == "transformers" else client.cfg.model,
+                   protocol_id=st.protocol_id, demo_set_id=None, input_mode=INPUT_MODE,
                    n_frames=0, margin=margin, p_yes=p_yes(margin) if margin is not None else None, top_tokens=top,
                    parsed_verdict=verdict, vcg_score=score, parse_status=status, latency_s=resp["_latency_s"],
                    cost_usd=resp["_cost_usd"] / n, sample_idx=k, decoding=decoding,
@@ -177,7 +189,7 @@ def stage_scope(store: ArtifactStore, st: CaptureStage, items: list[Item], group
 def write_capture_report(store: ArtifactStore, stages: list[CaptureStage], items: list[Item],
                          groups: dict[str, set[str]], out: Path) -> None:
     calls = {r["judge_call_id"]: r for r in store.iter("judgecall")}
-    lines = ["# GPT-3.5 capture report", "",
+    lines = ["# Judge capture report", "",
              "| stage | judge | expected | done | ok rate | api_no_logprob rate | yes rate | cost USD | models | fingerprints |",
              "|---|---|---|---|---|---|---|---|---|---|"]
     for st in stages:
