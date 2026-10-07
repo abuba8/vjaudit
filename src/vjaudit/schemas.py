@@ -76,3 +76,28 @@ class JudgeCall(Record):
     api_model_returned: str | None = None
     system_fingerprint: str | None = None
     raw_text: str | None = None
+
+
+class Unit(Record):
+    """One distinct (question, normalized answer) pair to label; several systems can share it (R-ANN-07)."""
+
+    unit_id: str  # short_id(item_id, answer_norm)
+    item_id: str
+    benchmark: str
+    answer_norm: str
+    display_answer: str  # output_text of the generation with the smallest gen_id
+    gen_ids: list[str]
+    system_ids: list[str]  # never exported to annotators (R-ANN-02)
+
+
+class Label(Record):
+    """A correctness label for a unit from one source: a person (human:<id>) or a reference judge (claude-manual)."""
+
+    label_id: str  # short_id(unit_id, source)
+    unit_id: str
+    source: str
+    task: Literal["ref", "vid"]
+    label: Literal["correct", "incorrect"]
+    error_tags: list[str]
+    note: str
+    batch: str

@@ -10,3 +10,4 @@ configs/local/*.json
 /data/
 *.egg-info/
 logs/
+/annotation/
