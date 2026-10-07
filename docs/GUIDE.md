@@ -70,6 +70,17 @@ All model, judge and sampling settings live in a **profile**, a folder with thre
 - Each profile writes to its own folders: `artifacts/<profile>/`, `artifacts/frames/<profile>/` and
   `artifacts/api_cache/<profile>/`.
 - Reports are per profile too, for example `docs/samples_server.md` and `docs/capture_mac.md`.
+- **Records written before profiles existed** sit directly in `artifacts/` (`artifacts/item/`,
+  `artifacts/generation/`, …) and are not seen by the new layout; commands print a `WARNING` about them.
+  Move them into the server profile once, before running anything else (the default paths are shown):
+
+  ```bash
+  mkdir -p artifacts/server artifacts/frames/server artifacts/api_cache/server
+  for k in item_pool item generation judgecall; do [ -d artifacts/$k ] && mv artifacts/$k artifacts/server/; done
+  find artifacts/frames -maxdepth 1 -type f -name '*.npz' -exec mv {} artifacts/frames/server/ \;
+  find artifacts/api_cache -mindepth 1 -maxdepth 1 -type d ! -name server ! -name mac \
+       -exec mv {} artifacts/api_cache/server/ \;
+  ```
 
 ---
 

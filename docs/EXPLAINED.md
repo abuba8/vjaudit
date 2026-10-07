@@ -741,7 +741,7 @@ make annotate-status PROFILE=mac
 
 | Problem | What to do |
 |---|---|
-| Claude's reply stops early (long batch) | In the same conversation, ask: "Continue from the row after `<last unit_id>`, in a new csv block with the same header." Save that reply as a second file and import both. Rows already stored are skipped. |
+| Claude's reply stops early (long batch) | In the first file, delete the last row if it is cut off mid-line. Then, in the same conversation, ask: "Continue from the row after `<last complete unit_id>`, in a new csv block with the same header." Save that reply as a second file and import both. Rows already stored are skipped. |
 | A row has an unknown `unit_id` | Claude mistyped an ID. Fix the ID in the text file (copy it from the batch file) and import again. |
 | The importer finds no header | The reply has no `unit_id,label,error_tags,note` line. Ask Claude to answer again in the required format. |
 | You disagree with some of Claude's labels | Do not edit them in place. Run a second pass under a new source name, for example `SOURCE=claude-manual-v2`. Both sources then appear in the report. |

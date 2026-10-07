@@ -75,3 +75,12 @@ def test_cli_prints_profile(tmp_paths):
                                    "--paths", str(tmp_paths)])
     assert res.exit_code == 0, res.output
     assert res.output.startswith("profile: mac")
+
+
+def test_cli_warns_about_records_in_the_old_unprofiled_layout(tmp_paths):
+    (tmp_paths.parent / "a" / "item").mkdir(parents=True)  # written by the code before profiles existed
+    res = CliRunner().invoke(app, ["gen", "coverage", "--subset", "annotated", "--paths", str(tmp_paths)])
+    assert "WARNING" in res.output and "docs/GUIDE.md" in res.output and "server" in res.output
+    (tmp_paths.parent / "a" / "item").rename(tmp_paths.parent / "a" / "server" / "item")  # migrated
+    res = CliRunner().invoke(app, ["gen", "coverage", "--subset", "annotated", "--paths", str(tmp_paths)])
+    assert "WARNING" not in res.output
