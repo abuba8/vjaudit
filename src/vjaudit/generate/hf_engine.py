@@ -12,6 +12,9 @@ from vjaudit.config import GeneratorCfg
 from vjaudit.device import default_dtype, pick_device
 
 OOM_HINT = "reduce n_frames or frame_max_side in configs/profiles/mac"
+# Pure greedy decoding, like vLLM with temperature 0: override the model's generation_config defaults
+# (some ship a repetition penalty or sampling settings).
+GREEDY = {"do_sample": False, "temperature": None, "top_p": None, "top_k": None, "repetition_penalty": 1.0}
 Loader = Callable[[str, "str | None", str, str], tuple]
 
 
@@ -59,7 +62,7 @@ class TransformersEngine:
         for req in requests:
             try:
                 inputs = self._inputs(req)
-                seq = self.model.generate(**inputs, do_sample=False, max_new_tokens=max_new_tokens)
+                seq = self.model.generate(**inputs, max_new_tokens=max_new_tokens, **GREEDY)
             except Exception as e:  # noqa: BLE001
                 if "out of memory" in str(e).lower():
                     raise RuntimeError(f"{self.gen.id}: {e} — {OOM_HINT}") from e

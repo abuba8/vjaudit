@@ -123,3 +123,14 @@ def test_engine_close_drops_model():
     eng = TransformersEngine(PINNED, device="cpu", loader=fake_loader())
     eng.close()
     assert eng.model is None and eng.processor is None
+
+
+def test_engine_greedy_ignores_model_generation_defaults():
+    """Pure greedy like vLLM's temperature 0: no repetition penalty, no sampling fields from generation_config;
+    frames are passed as already sampled (video only)."""
+    proc, model = FakeProcessor(), FakeModel()
+    eng = TransformersEngine(PINNED, device="cpu", loader=fake_loader(proc, model))
+    eng.generate([{"prompt": "P", "multi_modal_data": {"video": FRAMES}}, {"prompt": "Q"}], 4)
+    assert model.kwargs["repetition_penalty"] == 1.0 and model.kwargs["do_sample"] is False
+    assert model.kwargs["temperature"] is None and model.kwargs["top_p"] is None and model.kwargs["top_k"] is None
+    assert proc.calls[0]["do_sample_frames"] is False and "do_sample_frames" not in proc.calls[1]

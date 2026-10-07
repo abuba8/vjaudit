@@ -36,6 +36,18 @@ def content_from_logits(gen_ids: list[int], step_logits: list[np.ndarray], decod
     return out
 
 
+def generate_kwargs(temperature: float, max_new_tokens: int, pad_token_id: int | None) -> dict:
+    """Decoding settings that override the model's generation_config defaults (sampling fields, repetition
+    penalty), so verdicts follow the same raw logits that the margins are computed from."""
+    kw = {"max_new_tokens": max_new_tokens, "output_logits": True, "return_dict_in_generate": True,
+          "pad_token_id": pad_token_id, "repetition_penalty": 1.0}
+    if temperature == 0:
+        kw.update(do_sample=False, temperature=None, top_p=None, top_k=None)
+    else:  # plain sampling, like the API default (no top-p / top-k truncation)
+        kw.update(do_sample=True, temperature=temperature, top_p=1.0, top_k=0)
+    return kw
+
+
 class JudgeBackend(Protocol):
     def render(self, messages: list[dict]) -> str: ...
 
@@ -81,13 +93,10 @@ class HFCausalBackend:
 
         self._ensure()
         enc = self._tok(prompt, return_tensors="pt", add_special_tokens=False).to(self.device)
-        kw = dict(max_new_tokens=max_new_tokens, output_logits=True, return_dict_in_generate=True,
-                  pad_token_id=self._tok.pad_token_id if self._tok.pad_token_id is not None else self._tok.eos_token_id)
-        if temperature == 0:
-            kw.update(do_sample=False, temperature=None, top_p=None, top_k=None)
-        else:  # plain sampling, like the API default (no top-p / top-k truncation)
+        pad = self._tok.pad_token_id if self._tok.pad_token_id is not None else self._tok.eos_token_id
+        kw = generate_kwargs(temperature, max_new_tokens, pad)
+        if temperature != 0:
             torch.manual_seed(seed)
-            kw.update(do_sample=True, temperature=temperature, top_p=1.0, top_k=0)
         with torch.no_grad():
             out = self._model.generate(**enc, **kw)
         n_prompt = enc["input_ids"].shape[1]

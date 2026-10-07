@@ -161,3 +161,13 @@ def test_hf_backend_refuses_unpinned():
     be = HFCausalBackend(CFG.model_copy(update={"revision": "UNPINNED"}))
     with pytest.raises(ValueError, match="UNPINNED"):
         be.render(MSGS)
+
+
+def test_judge_generate_kwargs_greedy_and_sampling():
+    from vjaudit.judge.local import generate_kwargs
+    g = generate_kwargs(0.0, 64, pad_token_id=5)
+    assert g == {"max_new_tokens": 64, "output_logits": True, "return_dict_in_generate": True, "pad_token_id": 5,
+                 "repetition_penalty": 1.0, "do_sample": False, "temperature": None, "top_p": None, "top_k": None}
+    s = generate_kwargs(1.0, 1, pad_token_id=5)
+    assert s["do_sample"] is True and s["temperature"] == 1.0 and s["top_p"] == 1.0 and s["top_k"] == 0
+    assert s["repetition_penalty"] == 1.0
