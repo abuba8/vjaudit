@@ -68,3 +68,19 @@ def test_validate_source(src, ok):
     else:
         with pytest.raises(ValueError):
             validate_source(src)
+
+
+def test_parse_unfenced_reply_ignores_trailing_prose():
+    text = "Here are the labels.\nunit_id,label,error_tags,note\nu1,correct,,\nu2,incorrect,E2,\n\nLet me know if you need more.\n"
+    assert [r["unit_id"] for r in parse_label_csv(text)] == ["u1", "u2"]
+
+
+def test_parse_header_with_spaces_after_commas():
+    rows = parse_label_csv("unit_id, label, error_tags, note\nu1, correct, E1;E2, fine\n")
+    assert rows == [{"row": 1, "unit_id": "u1", "label": "correct", "error_tags": ["E1", "E2"], "note": "fine"}]
+
+
+def test_row_with_too_many_fields_is_an_error(tmp_path):
+    rows = parse_label_csv("unit_id,label,error_tags,note\nu2,incorrect,E2, E4,unquoted, note\n")
+    with pytest.raises(LabelImportError, match="row 1.*more than 4 fields"):
+        import_labels(ArtifactStore(tmp_path), rows, "claude-manual", MANIFEST)

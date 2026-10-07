@@ -39,23 +39,35 @@ def validate_source(source: str) -> None:
 
 
 def parse_label_csv(text: str) -> list[dict]:
-    """Rows from a CSV, or from the first fenced code block that holds one (Claude's reply may add prose)."""
-    text = text.replace("\r\n", "\n").replace("\r", "\n").lstrip("﻿")
+    """Rows from a CSV, or from the first fenced code block that holds one (Claude's reply may add prose).
+
+    Without a code fence, the CSV ends at the first non-empty line that has no comma (closing prose).
+    Spaces after commas are ignored. A row with more fields than the header is flagged, not guessed.
+    """
+    text = text.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
     blocks = [b for b in _FENCE.findall(text) if "unit_id" in b]
     body = blocks[0] if blocks else text
     lines = body.split("\n")
-    start = next((k for k, ln in enumerate(lines) if ln.strip().lstrip("﻿").startswith("unit_id")), None)
+    start = next((k for k, ln in enumerate(lines) if ln.strip().lstrip("\ufeff").startswith("unit_id")), None)
     if start is None:
         raise LabelImportError(["no header line starting with unit_id (expected: unit_id,label,error_tags,note)"])
-    reader = csv.DictReader(io.StringIO("\n".join(ln.strip() for ln in lines[start:])))
+    kept = [lines[start].strip()]
+    for ln in lines[start + 1:]:
+        if not blocks and ln.strip() and "," not in ln:
+            break  # prose after an unfenced CSV
+        kept.append(ln.strip())
+    reader = csv.DictReader(io.StringIO("\n".join(kept)), skipinitialspace=True, restkey="_extra")
+    reader.fieldnames = [f.strip().lower() for f in reader.fieldnames or []]
     rows = []
     for n, r in enumerate(reader, start=1):
-        if not any((v or "").strip() for v in r.values() if isinstance(v, str)):
+        if not any((v or "").strip() for k, v in r.items() if k != "_extra" and isinstance(v, str)):
             continue  # blank line
         tags = [t.strip().upper() for t in (r.get("error_tags") or "").split(";") if t.strip()]
-        rows.append({"row": n, "unit_id": (r.get("unit_id") or "").strip(),
-                     "label": (r.get("label") or "").strip().lower(), "error_tags": tags,
-                     "note": (r.get("note") or "").strip()})
+        row = {"row": n, "unit_id": (r.get("unit_id") or "").strip(), "label": (r.get("label") or "").strip().lower(),
+               "error_tags": tags, "note": (r.get("note") or "").strip()}
+        if r.get("_extra"):
+            row["too_many_fields"] = True
+        rows.append(row)
     return rows
 
 
@@ -64,6 +76,8 @@ def _validate(rows: list[dict], batch_of: dict[str, str]) -> list[str]:
     for r in rows:
         at = r["row"] if isinstance(r["row"], str) else f"row {r['row']}"  # the CLI passes "<file> row <n>"
         where = f"{at} ({r['unit_id'] or 'no unit_id'})"
+        if r.get("too_many_fields"):
+            errors.append(f"{where}: more than 4 fields (quote a note that contains commas; separate tags with ;)")
         if r["unit_id"] not in batch_of:
             errors.append(f"{where}: unit_id {r['unit_id']!r} was not exported")
         if r["label"] not in LABELS:
