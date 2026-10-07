@@ -2,6 +2,7 @@ import pytest
 
 from tests.helpers.factories import make_generation, make_item, make_judgecall
 from vjaudit.hashing import short_id
+from vjaudit.judge.templates import load_template, protocol_id
 from vjaudit.report.summary import build_tables, judge_configs, visual_gain, write_summary
 from vjaudit.schemas import Label
 from vjaudit.store import ArtifactStore, stamp
@@ -9,6 +10,7 @@ from vjaudit.store import ArtifactStore, stamp
 J = [True, True, False, True]
 R = [True, False, False, True]
 CFG = "qwen3-4b/t-rub/t0"
+RUB_NOW = protocol_id(load_template("t-rub"), "t0")  # the current T-RUB text's protocol id
 
 
 def _label(item_id, norm, ok, source="claude-manual"):
@@ -29,7 +31,7 @@ def _fill(tmp_path, systems=("qwen25vl3b",), verdicts=None, labels=True):
             store.put("generation", g, g.gen_id)
             v = (verdicts or {}).get(s, J)[i]
             jc = make_judgecall(i, judge_call_id=f"jc-{s}-{i}", gen_id=g.gen_id, judge_id="qwen3-4b",
-                                protocol_id="t-rub@abcdef12/t0", parsed_verdict=v,
+                                protocol_id=RUB_NOW, parsed_verdict=v,
                                 parse_status="ok" if v is not None else "off_vocab")
             store.put("judgecall", jc, jc.judge_call_id)
             if labels:
@@ -48,7 +50,7 @@ def test_summary_tables_and_gap(tmp_path):
     store, items = _fill(tmp_path)
     row = build_tables(store, items, "annotated")["msvd"]["qwen25vl3b"]
     assert row["n"] == 4
-    assert row["configs"][CFG] == {"acc": 0.75, "unparseable": 0}
+    assert row["configs"][CFG] == {"acc": 0.75, "unparseable": 0, "judged": 4}
     assert row["sources"]["claude-manual"]["acc"] == 0.5
     agree = row["agreement"][CFG]
     assert agree["source"] == "claude-manual" and agree["gap_pts"] == pytest.approx(25.0)
@@ -58,7 +60,7 @@ def test_summary_tables_and_gap(tmp_path):
 def test_unparseable_verdicts_are_counted_not_mapped(tmp_path):
     store, items = _fill(tmp_path, verdicts={"qwen25vl3b": [True, None, False, True]})
     row = build_tables(store, items, "annotated")["msvd"]["qwen25vl3b"]
-    assert row["configs"][CFG] == {"acc": pytest.approx(2 / 3), "unparseable": 1}
+    assert row["configs"][CFG] == {"acc": pytest.approx(2 / 3), "unparseable": 1, "judged": 4}
     assert row["agreement"][CFG]["n"] == 3
 
 
@@ -88,3 +90,27 @@ def test_summary_with_labels_shows_agreement(tmp_path):
     text = out.read_text()
     assert "| qwen25vl3b | 4 | 0.750 (0) | 0.500 |" in text
     assert "| qwen25vl3b | qwen3-4b/t-rub/t0 | 4 | +25.0 | 0.500 | 0.500 | 0.000 |" in text
+
+
+def test_verdicts_from_an_older_template_version_are_left_out_and_counted(tmp_path):
+    store, items = _fill(tmp_path)
+    old = make_judgecall(99, judge_call_id="old-0", gen_id="qwen25vl3b-0", judge_id="qwen3-4b",
+                         protocol_id="t-rub@00000000/t0", parsed_verdict=False)
+    store.put("judgecall", old, old.judge_call_id)
+    tables = build_tables(store, items, "annotated")
+    assert tables["msvd"]["qwen25vl3b"]["configs"][CFG]["acc"] == 0.75  # old verdict not mixed in
+    out = tmp_path / "r.md"
+    write_summary(store, items, "mac", out)
+    assert "1 judge call(s) from an older version of a judge prompt are not counted" in out.read_text()
+
+
+def test_partial_coverage_is_shown_in_the_cell(tmp_path):
+    store, items = _fill(tmp_path)
+    extra = make_item(9, item_id="msvd:test:9", in_main=True, in_annotated=False)
+    store.put("item", extra, extra.item_id)
+    g = make_generation(9, gen_id="qwen25vl3b-9", item_id=extra.item_id, system_id="qwen25vl3b", answer_norm="x")
+    store.put("generation", g, g.gen_id)
+    out = tmp_path / "r.md"
+    write_summary(store, items + [extra], "mac", out)
+    run2 = out.read_text().split("## Run 2")[1]
+    assert "| qwen25vl3b | 5 | 0.750 (0) [4 of 5 judged] |" in run2

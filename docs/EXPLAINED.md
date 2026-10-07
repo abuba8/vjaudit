@@ -559,8 +559,9 @@ reconstruction with the real template (`docs/GUIDE.md`, "Verify the judge prompt
 `ALLOW_UNVERIFIED=1` to the judge commands below. That is fine for testing the pipeline, but note in your
 results that T-RUB was a reconstruction.
 
-Do this step **before** any judging. Changing a prompt changes its ID, so verdicts from the old prompt
-would no longer match the new one.
+Do this step **before** any judging. Changing a prompt changes its ID: verdicts made with the old prompt
+stay in the store but are left out of the report (the report says how many), and the judging must be run
+again.
 
 ### Step 7: Run 1 — answers for 100 questions per benchmark
 
@@ -777,6 +778,7 @@ An excerpt (the numbers are only illustrations):
   is that judge's accuracy for the system.
 - **(k)** counts replies the judge gave that could not be read. They are left out of the accuracy, never
   guessed.
+- **[k of n judged]** appears when a judge has graded only some of the answers so far.
 - The **`claude-manual` column** is the accuracy according to Claude's labels.
 
 ### 7.2 Run 1: agreement with the reference
@@ -813,8 +815,9 @@ judge distorts how much seeing the video helps. That is hypothesis HD in miniatu
 
 ### 7.4 Run 2: accuracy on the main set
 
-The same accuracy table for 1,000 questions per benchmark, judged by the main judge. There are no label
-columns: only the annotated set is labelled.
+The same accuracy table for 1,000 questions per benchmark. Only the main judge (Qwen3-4B) grades the
+whole main set; the small judge's columns cover only the annotated part and are marked, for example
+`0.640 (0) [100 of 1000 judged]`. There are no label columns: only the annotated set is labelled.
 
 ### 7.5 How precise are these numbers?
 

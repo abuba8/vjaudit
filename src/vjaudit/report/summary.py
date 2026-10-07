@@ -6,6 +6,7 @@ from pathlib import Path
 
 from vjaudit.generate.coverage import select
 from vjaudit.hashing import short_id
+from vjaudit.judge.templates import load_template
 from vjaudit.schemas import Item
 from vjaudit.store import ArtifactStore
 
@@ -25,6 +26,26 @@ def _primary(call: dict) -> bool:
     return call.get("sample_idx", 0) == 0 and call.get("input_mode", "text") == "text"
 
 
+def _current_templates() -> dict[str, str]:
+    """'t-vcg' -> 't-vcg@<hash8>' for the prompt files as they are now."""
+    out = {}
+    for tid in ("t-vcg", "t-rub"):
+        t = load_template(tid)
+        out[tid] = f"{t.id}@{t.content_hash[:8]}"
+    return out
+
+
+def _is_current(call: dict, current: dict[str, str]) -> bool:
+    """False for verdicts made with an older version of a judge prompt (e.g. before T-RUB was vendored)."""
+    template_part = call["protocol_id"].split("/")[0]
+    return current.get(template_part.split("@")[0], template_part) == template_part
+
+
+def stale_calls(store: ArtifactStore) -> int:
+    current = _current_templates()
+    return sum(1 for c in store.iter("judgecall") if _primary(c) and not _is_current(c, current))
+
+
 def judge_configs(judgecalls) -> list[str]:
     """Sorted '<judge_id>/<template>/<decoding_tag>' keys over first-sample, text-only calls."""
     return sorted({_config_key(c) for c in judgecalls if _primary(c)})
@@ -34,7 +55,8 @@ def build_tables(store: ArtifactStore, items: list[Item], subset: str) -> dict:
     """{benchmark: {system: {n, configs: {cfg: {acc, unparseable}}, sources: {src: {acc, n}},
     agreement: {cfg: {source, n, gap_pts, kappa, fpr, fnr}}}}} for the generations of ``subset``."""
     chosen = {i.item_id: i for i in select(items, subset)}
-    calls = [c for c in store.iter("judgecall") if _primary(c)]
+    current = _current_templates()
+    calls = [c for c in store.iter("judgecall") if _primary(c) and _is_current(c, current)]
     verdict: dict[str, dict[str, bool | None]] = defaultdict(dict)
     for c in calls:
         verdict[c["gen_id"]][_config_key(c)] = c["parsed_verdict"]
@@ -59,7 +81,8 @@ def build_tables(store: ArtifactStore, items: list[Item], subset: str) -> dict:
                 vs = [verdict[g["gen_id"]][cfg] for g in gens if cfg in verdict[g["gen_id"]]]
                 if vs:
                     parsed = [v for v in vs if v is not None]
-                    row["configs"][cfg] = {"acc": yes_rate(parsed), "unparseable": len(vs) - len(parsed)}
+                    row["configs"][cfg] = {"acc": yes_rate(parsed), "unparseable": len(vs) - len(parsed),
+                                           "judged": len(vs)}
             for src in sources:
                 ls = [labels[unit[g["gen_id"]]][src] for g in gens if src in labels.get(unit[g["gen_id"]], {})]
                 if ls:
@@ -108,6 +131,12 @@ def _all_keys(rows: dict, field: str) -> list[str]:
     return sorted({k for r in rows.values() for k in r[field]})
 
 
+def _config_cell(v: dict, n: int) -> str:
+    """'0.640 (2)'; when the judge saw only part of the answers: '0.640 (2) [100 of 1000 judged]'."""
+    cell = f"{_f(v['acc'])} ({v['unparseable']})"
+    return cell if v["judged"] >= n else f"{cell} [{v['judged']} of {n} judged]"
+
+
 def _accuracy_table(rows: dict, with_sources: bool) -> list[str]:
     configs = _all_keys(rows, "configs")
     sources = _all_keys(rows, "sources") if with_sources else []
@@ -115,8 +144,7 @@ def _accuracy_table(rows: dict, with_sources: bool) -> list[str]:
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for system, r in rows.items():
         cells = [system, str(r["n"])]
-        cells += [f"{_f(r['configs'][c]['acc'])} ({r['configs'][c]['unparseable']})" if c in r["configs"] else DASH
-                  for c in configs]
+        cells += [_config_cell(r["configs"][c], r["n"]) if c in r["configs"] else DASH for c in configs]
         cells += [_f(r["sources"][s]["acc"]) if s in r["sources"] else DASH for s in sources]
         lines.append("| " + " | ".join(cells) + " |")
     return lines
@@ -127,7 +155,13 @@ def write_summary(store: ArtifactStore, items: list[Item], profile_name: str, ou
     run1 = build_tables(store, items, "annotated")
     lines = [f"# Results — profile `{profile_name}`", "", f"> {NOTE}",
              "> acc = share of answers called correct. (k) after a judge accuracy = verdicts that could not be "
-             "parsed; they are counted, never guessed.", "", "## Run 1 — annotated set", ""]
+             "parsed; they are counted, never guessed. [k of n judged] = that judge saw only part of the answers.",
+             ""]
+    stale = stale_calls(store)
+    if stale:
+        lines += [f"> {stale} judge call(s) from an older version of a judge prompt are not counted (the prompt "
+                  "file changed after they were made).", ""]
+    lines += ["## Run 1 — annotated set", ""]
     if not run1:
         lines += ["No generations for the annotated set yet.", ""]
     for bench, rows in run1.items():
