@@ -106,3 +106,22 @@ def test_undecodable_video_is_skipped_and_logged_not_fatal(tmp_path, gens, items
         new = run_generation(store, items[:3], spec, FakeEngine(lambda r: "x"), BadOne(), gen, adapter)
     assert new == 2 and "vid1" in caplog.text
     assert {r["item_id"] for r in store.iter("generation")} == {"msvd:test:0", "msvd:test:2"}
+
+
+class SizedFrameCache(FakeFrameCache):
+    def __init__(self, max_side):
+        super().__init__()
+        self.max_side = max_side
+
+
+def test_frame_size_is_part_of_the_generation_id(tmp_path, gens, items):
+    """Answers from 448-px and 384-px frames must not share an ID; the server default (768) keeps old IDs."""
+    def ids(sid, cache):
+        gen, spec, adapter = _setup(gens, sid)
+        store = ArtifactStore(tmp_path / f"{sid}-{getattr(cache, 'max_side', 'none')}")
+        run_generation(store, items[:1], spec, FakeEngine(lambda r: "x"), cache, gen, adapter)
+        return {r["gen_id"] for r in store.iter("generation")}
+
+    assert ids("qwen3vl8b", SizedFrameCache(448)) != ids("qwen3vl8b", SizedFrameCache(384))
+    assert ids("qwen3vl8b", SizedFrameCache(768)) == ids("qwen3vl8b", FakeFrameCache())  # server IDs unchanged
+    assert ids("qwen3vl8b-blind", SizedFrameCache(448)) == ids("qwen3vl8b-blind", SizedFrameCache(384))

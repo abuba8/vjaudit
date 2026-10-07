@@ -19,15 +19,25 @@ log = logging.getLogger(__name__)
 MAX_NEW_TOKENS = {"short": 128, "sentence": 256, "mc": 8}
 
 
-def gen_config(gen: GeneratorCfg, spec: SystemSpec) -> dict:
-    """Everything that determines the output; its hash is part of gen_id."""
-    return {"generator": gen.model_dump(), "spec": asdict(spec), "prompt": load_prompt(spec.style),
-            "decoding": {"temperature": 0, "max_new_tokens": MAX_NEW_TOKENS[spec.style]}}
+DEFAULT_FRAME_MAX_SIDE = 768
+
+
+def gen_config(gen: GeneratorCfg, spec: SystemSpec, frame_max_side: int = DEFAULT_FRAME_MAX_SIDE) -> dict:
+    """Everything that determines the output; its hash is part of gen_id.
+
+    The frame size enters only when frames are used and it differs from the default, so IDs made with the
+    default 768 px (the server profile) stay as they were.
+    """
+    cfg = {"generator": gen.model_dump(), "spec": asdict(spec), "prompt": load_prompt(spec.style),
+           "decoding": {"temperature": 0, "max_new_tokens": MAX_NEW_TOKENS[spec.style]}}
+    if not spec.blind and frame_max_side != DEFAULT_FRAME_MAX_SIDE:
+        cfg["frames"] = {"max_side": frame_max_side}
+    return cfg
 
 
 def run_generation(store: ArtifactStore, items: list[Item], spec: SystemSpec, engine: Engine, frame_cache,
                    gen: GeneratorCfg, adapter: Adapter, batch_size: int = 16) -> int:
-    cfg = gen_config(gen, spec)
+    cfg = gen_config(gen, spec, getattr(frame_cache, "max_side", DEFAULT_FRAME_MAX_SIDE))
     chash = config_hash(cfg)
     todo = [(it, short_id(it.item_id, spec.system_id, chash)) for it in items if it.available]
     todo = [(it, gid) for it, gid in todo if not store.has("generation", gid)]
