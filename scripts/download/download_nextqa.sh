@@ -30,7 +30,7 @@ done
 
 mkdir -p "$ANN_DIR"
 log "downloading lmms-lab/NExTQA annotations (OE + MC parquet)"
-hf_download lmms-lab/NExTQA "$ANN_DIR" --include "OE/*" "MC/*" "README.md"
+hf_download lmms-lab/NExTQA "$ANN_DIR" --include "OE/*" --include "MC/*" --include "README.md"
 [ -f "$ANN_DIR/OE/test-00000-of-00001.parquet" ] || die "OE test parquet missing in $ANN_DIR/OE"
 
 if [ "$vid" = 1 ]; then
