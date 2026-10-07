@@ -4,14 +4,14 @@
 |---|---|---|
 | Folder | `Topic C/vjaudit` | `Topic C/vjauditv2` |
 | Git branch | `stage1` | `mac-profile` |
-| Commit | `f5548e0` (plus your local, uncommitted fix to `scripts/download/download_nextqa.sh`) | 23 commits on top of `f5548e0` (the last one adds this file) |
+| Commit | `f5548e0` (plus your local, uncommitted fix to `scripts/download/download_nextqa.sh`) | `mac-profile`: all commits since `f5548e0` (list them with `git log f5548e0..HEAD`) |
 | Runs on | the GPU server (3× A30, vLLM) | the GPU server **and** a 32 GB Apple-Silicon Mac |
 | Judges | GPT-3.5 through the OpenAI API (needs a key) | the same, **or** small local judges (no key, no cost) |
 | Install | uv, Python 3.11 | conda (e.g. `dl`) or uv, Python 3.11–3.13 |
-| CPU tests | 202 | 315 |
+| CPU tests | 202 | 318 |
 
-**Size of the change:** 84 files: 44 added, 37 modified, 3 moved;
-5,627 lines added and 444 removed. This file (`differences.md`) is not counted.
+**Size of the change:** 85 files: 45 added, 37 modified, 3 moved;
+6,004 lines added and 444 removed. This file (`differences.md`) is not counted.
 
 **Data:** v2 does not copy the datasets. Its `configs/local/paths.yaml` points to `../vjaudit/data/`.
 
@@ -42,7 +42,7 @@
 | **Makefile** | always `uv run`; server targets only | uses the active conda environment (any except `base`) or uv; `PROFILE`; new Mac targets; `ALLOW_UNPINNED=1`, `ALLOW_UNVERIFIED=1` |
 | **Dependencies** | Python 3.11; extra `gpu` | Python 3.11–3.13; `gpu` (vLLM only on Linux) and new `mac` extra |
 | **Download scripts** | call `uv run` | use the active conda environment, otherwise uv; NExT-QA script fix included |
-| **Docs** | `README.md`, `docs/GUIDE.md` | both updated; new `docs/EXPLAINED.md` (the plain-language guide) |
+| **Docs** | `README.md`, `docs/GUIDE.md` | both updated; new `docs/EXPLAINED.md` (the plain-language guide) and `WORKFLOW.md` (workflow through the code, and the commands) |
 
 ## 2. What did not change
 
@@ -57,10 +57,11 @@
 
 ## 3. File by file
 
-### 3.1 Added (44)
+### 3.1 Added (45)
 
 | File | What it is | Lines |
 |---|---|---|
+| `WORKFLOW.md` | the workflow traced step by step through the code, and the exact commands to run it | +376 / −0 |
 | `configs/profiles/mac/generators.yaml` | Mac video models: Qwen2.5-VL-3B (short, sentence, blind), Qwen3-VL-2B, LLaVA-OneVision-0.5B; `backend: hf`, 8 frames, `dtype: auto` | +38 / −0 |
 | `configs/profiles/mac/grid.yaml` | Mac samples (main 1,000 / annotated 100 / vid 30 per benchmark), `frame_max_side: 448`, judge stages M1–M6 and optional G1–G2 | +27 / −0 |
 | `configs/profiles/mac/judges.yaml` | local judges Qwen3-4B-Instruct-2507 and Qwen2.5-1.5B-Instruct (`backend: transformers`), plus GPT-3.5 for the optional stages | +29 / −0 |
@@ -101,7 +102,7 @@
 | `tests/report/test_cli_report.py` | tests for the report package | +14 / −0 |
 | `tests/report/test_metrics.py` | tests for the report package | +25 / −0 |
 | `tests/report/test_summary.py` | tests for the report package | +116 / −0 |
-| `tests/test_docs.py` | checks that the docs name only real make targets, commands and file paths | +37 / −0 |
+| `tests/test_docs.py` | checks that README, GUIDE, EXPLAINED and WORKFLOW name only real make targets, commands and file paths | +37 / −0 |
 | `tests/test_mac_real.py` | real-model checks for the Mac (marker `mac`; not part of `make sanity`) | +39 / −0 |
 | `tests/test_profile.py` | profiles and per-profile folders | +86 / −0 |
 | `tests/test_tooling.py` | Makefile and pyproject wiring (profiles, conda/uv rule, Python versions) | +89 / −0 |
@@ -120,7 +121,7 @@
 |---|---|---|
 | `.gitignore` | adds `/annotation/` (exported label batches hold dataset text) | +1 / −0 |
 | `Makefile` | profile selection (`PROFILE=mac`); runs Python from the active conda environment or uv (`RUN`); new targets `pin`, `smoke`, `run1`, `run2`, `judge-run1`, `judge-run2`, `annotate-export`, `annotate-import`, `annotate-status`, `report`; `ALLOW_UNPINNED` / `ALLOW_UNVERIFIED` flags; `make sanity` also skips `mac` tests | +73 / −14 |
-| `README.md` | install with conda (`dl`) or uv; first commands on a Mac; links to `docs/EXPLAINED.md` | +40 / −6 |
+| `README.md` | install with conda (`dl`) or uv; first commands on a Mac; links to `docs/EXPLAINED.md` and `WORKFLOW.md` | +41 / −6 |
 | `docs/GUIDE.md` | profiles section, conda install, moved config paths, per-profile report names, new files, moving old results | +110 / −31 |
 | `docs/decisions.md` | dated entry for the Mac set-up | +10 / −0 |
 | `pyproject.toml` | Python 3.11–3.13 (was 3.11 only); new `mac` extra (torch, torchvision, transformers>=4.57, accelerate, huggingface_hub); vLLM only on Linux; pytest marker `mac` | +12 / −3 |
