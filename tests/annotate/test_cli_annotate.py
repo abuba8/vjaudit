@@ -25,6 +25,7 @@ def test_export_import_status_round_trip(tmp_paths, tmp_path):
     base = ["--profile", "mac", "--paths", str(tmp_paths)]
     res = _run("annotate", "export", "--set", "annotated", "--for", "claude", "--out-dir", str(out), *base)
     assert res.exit_code == 0, res.output
+    assert "annotate import --profile mac --source claude-manual" in res.output  # the printed hint works as-is
     md = (out / "mac" / "claude" / "batch_01.md").read_text()
     ids = [line.split("|")[1].strip() for line in md.splitlines() if line.startswith("| ") and "unit_id" not in line]
     assert len(ids) == 2 and len(list(ArtifactStore(tmp_paths.parent / "a" / "mac").iter("unit"))) == 2

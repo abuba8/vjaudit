@@ -46,8 +46,9 @@ def export_cmd(set_: str = typer.Option("annotated", "--set", help="annotated | 
     for f in files:
         typer.echo(f"  {f}")
     if for_ == "claude" and files:
-        typer.echo("Next: give each batch_NN.md to Claude, save its reply (e.g. batch_01_reply.txt), then run\n"
-                   "  uv run python -m vjaudit.cli annotate import --source claude-manual --file <reply file>")
+        typer.echo(f"Next: give each batch_NN.md to Claude, save its reply (e.g. {folder}/replies/batch_01.txt), "
+                   f"then run\n  uv run python -m vjaudit.cli annotate import --profile {prof.name} "
+                   "--source claude-manual --file <reply file>")
 
 
 @app.command("import")
