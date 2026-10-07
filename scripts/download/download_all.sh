@@ -29,4 +29,4 @@ fi
 bash "$here/download_msvd.sh" $flag
 bash "$here/download_nextqa.sh" $flag
 bash "$here/download_anetqa.sh" $flag
-log "all downloads finished. Next: uv run python -m vjaudit.cli data check-availability"
+log "all downloads finished. Next: make data-check (add PROFILE=mac on a Mac)"

@@ -38,3 +38,28 @@ def test_paths_example_matches_script_destinations():
     all_scripts = "".join((D / s).read_text() for s in SCRIPTS)
     for key in ("msvd_raw", "msvd_videos", "anetqa_raw", "anetqa_videos", "nextqa_raw", "nextqa_videos"):
         assert paths[key] in all_scripts, key
+
+
+def _run_python_with(tmp_path, env_extra):
+    import os
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    for name, says in (("python", "conda-python"), ("uv", "uv")):
+        f = bin_dir / name
+        f.write_text(f"#!/bin/sh\necho {says} \"$@\"\n")
+        f.chmod(0o755)
+    env = {k: v for k, v in os.environ.items() if k != "CONDA_DEFAULT_ENV"}
+    env.update(PATH=f"{bin_dir}:/usr/bin:/bin", **env_extra)
+    cmd = f'source "{D.resolve()}/common.sh"; run_python -m vjaudit.cli x'
+    return subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, env=env).stdout.strip()
+
+
+def test_run_python_prefers_the_active_conda_env(tmp_path):
+    assert _run_python_with(tmp_path, {"CONDA_DEFAULT_ENV": "dl"}) == "conda-python -m vjaudit.cli x"
+    assert _run_python_with(tmp_path, {}) == "uv run python -m vjaudit.cli x"
+    assert _run_python_with(tmp_path, {"CONDA_DEFAULT_ENV": "base"}) == "uv run python -m vjaudit.cli x"
+
+
+def test_prompt_script_runs_python_through_the_helper():
+    text = (D / "fetch_upstream_prompts.sh").read_text()
+    assert "run_python -m vjaudit.cli judge verify-vcg" in text and "uv run" not in text

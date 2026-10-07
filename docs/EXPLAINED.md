@@ -412,8 +412,8 @@ comparing them.
 
 ### 4.8 The command line
 
-Every step is a command: `uv run python -m vjaudit.cli <group> <command>`. The Makefile wraps the common
-ones. The groups are:
+Every step is a command: `python -m vjaudit.cli <group> <command>`, run inside your environment
+(`conda activate dl`; with uv, put `uv run` in front). The Makefile wraps the common ones. The groups are:
 
 | Group | File | Commands |
 |---|---|---|
@@ -424,15 +424,15 @@ ones. The groups are:
 | `report` | `src/vjaudit/cli_report.py` | `summary` |
 
 Add `--help` to any command to see its options, for example
-`uv run python -m vjaudit.cli annotate import --help`.
+`python -m vjaudit.cli annotate import --help`.
 
 ---
 
 ## 5. Running it on your Mac
 
-Run every command from the repository folder (`vjaudit/`). Add `PROFILE=mac` to every `make` command.
-Without it, the command uses the GPU-server profile; you will notice, because the first line of output
-says `profile: server`.
+Run every command from the repository folder (`vjaudit/`), in a terminal where your environment is active
+(`conda activate dl`). Add `PROFILE=mac` to every `make` command. Without it, the command uses the
+GPU-server profile; you will notice, because the first line of output says `profile: server`.
 
 > **Shortcut:** run `export PROFILE=mac` once in your terminal, and every `make` command in that terminal
 > uses the Mac profile.
@@ -445,15 +445,26 @@ says `profile: server`.
 | Free disk | about 30 GB for model downloads (`~/.cache/huggingface`), plus a few GB for frames and results |
 | Datasets | already downloaded under `data/` with the scripts in `scripts/download/` |
 | Internet | for the one-time model downloads and `make pin` |
-| Tools | `uv` (https://docs.astral.sh/uv/) and `git` |
+| Tools | a conda environment with Python 3.11–3.13 (for example `dl`), or `uv`; and `git` |
 
 ### Step 0: install
 
+With conda (your `dl` environment):
+
 ```bash
-uv python install 3.11
-uv sync --extra mac          # installs torch, transformers and friends (Apple-GPU builds)
+conda activate dl
+python --version             # must be 3.11, 3.12 or 3.13
+pip install -e ".[mac]" pytest pytest-asyncio   # the project, torch, transformers and friends
 make sanity                  # CPU tests; must end with "passed" and no "failed"
 ```
+
+`pip install -e` links the project into `dl`, so code changes take effect without reinstalling. It may
+upgrade `torch` and `transformers` in `dl`, because the code needs `transformers` 4.57 or newer.
+
+While `dl` is active, every `make` command uses its `python` and `pytest`. (Outside a conda environment,
+or in `base`, the Makefile uses `uv run` instead. To force one or the other, add `RUN=` or `RUN="uv run"`.)
+
+With uv instead of conda: `uv python install 3.11`, then `uv sync --extra mac`, then `make sanity`.
 
 ### Step 1: check your folder settings
 
@@ -491,7 +502,7 @@ Expected: `wrote ... items; report: docs/samples_mac.md`. The report shows 1,000
 30 vid questions per benchmark.
 
 Run this only once. If you run it again, it refuses to overwrite the existing sample. To start over on
-purpose, run `uv run python -m vjaudit.cli data sample --force --profile mac`; it archives the old sample
+purpose, run `python -m vjaudit.cli data sample --force --profile mac`; it archives the old sample
 first. Do this before generating answers, not after: a new sample means new questions.
 
 ### Step 4: pin the model versions
@@ -645,7 +656,7 @@ These are rough guides for an M5 with 32 GB; your smoke test gives the real seco
 ### Stopping, resuming and starting over
 
 - **Stop** any step with Ctrl-C. **Resume** by running the same command again.
-- **See what is missing:** `uv run python -m vjaudit.cli gen coverage --subset annotated --profile mac`.
+- **See what is missing:** `python -m vjaudit.cli gen coverage --subset annotated --profile mac`.
 - **Start the Mac results over completely:** move or delete the `artifacts/mac/` folder. The server
   profile's results are not affected.
 
@@ -745,7 +756,7 @@ make annotate-status PROFILE=mac
 | A row has an unknown `unit_id` | Claude mistyped an ID. Fix the ID in the text file (copy it from the batch file) and import again. |
 | The importer finds no header | The reply has no `unit_id,label,error_tags,note` line. Ask Claude to answer again in the required format. |
 | You disagree with some of Claude's labels | Do not edit them in place. Run a second pass under a new source name, for example `SOURCE=claude-manual-v2`. Both sources then appear in the report. |
-| You want to label units yourself | Export sheets with `uv run python -m vjaudit.cli annotate export --for human --profile mac`, fill in the `label` column (and tags), then import with `make annotate-import PROFILE=mac SOURCE=human:<your-initials> FILES=...`. A person's labels are kept apart from Claude's. |
+| You want to label units yourself | Export sheets with `python -m vjaudit.cli annotate export --for human --profile mac`, fill in the `label` column (and tags), then import with `make annotate-import PROFILE=mac SOURCE=human:<your-initials> FILES=...`. A person's labels are kept apart from Claude's. |
 
 ### 6.6 The honesty rule
 
@@ -855,7 +866,9 @@ a few points in Run 1 as noise. With 1,000 answers (Run 2), the uncertainty shri
 | `revision is UNPINNED` | Run `make pin PROFILE=mac` (Step 4). For a quick test only, add `ALLOW_UNPINNED=1`. |
 | `t-vcg is not verified` (or `t-rub`) | Do Step 6, or add `ALLOW_UNVERIFIED=1` to test the pipeline. |
 | `no sampled items yet` | Run `make data-check PROFILE=mac` and `make data-sample PROFILE=mac` first. |
-| `device` shows `cpu` in the smoke test | torch cannot see the Apple GPU. Re-run `uv sync --extra mac` and check that `uv run python -c "import torch; print(torch.backends.mps.is_available())"` prints `True`. |
+| `device` shows `cpu` in the smoke test | torch cannot see the Apple GPU. Check that `python -c "import torch; print(torch.backends.mps.is_available())"` prints `True` in `dl`. If not, reinstall torch: `pip install --upgrade --force-reinstall torch torchvision`. |
+| `No module named vjaudit` or `No module named torch` | The environment is not active, or the project is not installed in it. Run `conda activate dl`, then `pip install -e ".[mac]" pytest pytest-asyncio`. |
+| `make` prints `uv run ...` although you use conda | The conda environment is not active in that terminal (or it is `base`). Run `conda activate dl`, or add `RUN=` to the `make` command. |
 | `out of memory` | Lower `n_frames` (for example to 6) or `frame_max_side` (for example to 384) in `configs/profiles/mac/`. Changed settings create new records and keep the old ones. |
 | Empty or garbled answers from one model | Half precision can be unstable for some models on the Apple GPU. Set `dtype: bfloat16` (or `float32`) for that model in `configs/profiles/mac/generators.yaml` and run again. |
 | `ERROR: could not load <model>` in the smoke test | The download failed or the model name is wrong. Check your internet connection and the model name, then run again. |

@@ -10,6 +10,16 @@ warn() { printf '\033[1;33m[%s] WARNING:\033[0m %s\n' "$(basename "$0")" "$*" >&
 die()  { printf '\033[1;31m[%s] ERROR:\033[0m %s\n' "$(basename "$0")" "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required: $2"; }
 
+# Run the project's Python: the active conda environment's python (any env except base), or plain python when
+# uv is not installed; otherwise `uv run python`. Matches the Makefile's RUN rule.
+run_python() {
+  if { [ -n "${CONDA_DEFAULT_ENV:-}" ] && [ "${CONDA_DEFAULT_ENV}" != base ]; } || ! command -v uv >/dev/null 2>&1; then
+    python "$@"
+  else
+    uv run python "$@"
+  fi
+}
+
 # Hugging Face dataset download: uses `hf`, `huggingface-cli`, or `uvx --from huggingface_hub hf`.
 hf_download() {  # hf_download <repo> <local_dir> [extra args...]
   local repo=$1 dir=$2; shift 2

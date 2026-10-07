@@ -8,7 +8,8 @@ usage() {
   cat <<USAGE
 Usage: $(basename "$0") [--help]
 Clones mbzuai-oryx/Video-ChatGPT (depth 1) into \$DATA_ROOT/upstream and runs
-  uv run python -m vjaudit.cli judge verify-vcg --upstream <activitynet script> --upstream <msvd script> ...
+  python -m vjaudit.cli judge verify-vcg --upstream <activitynet script> --upstream <msvd script> ...
+(python from your active conda environment, or via uv when no conda environment is active)
 USAGE
 }
 [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ] && { usage; exit 0; }
@@ -24,4 +25,4 @@ for f in "$qe"/evaluate_*qa*.py; do
   [ "$f" = "$qe/evaluate_activitynet_qa.py" ] || args+=(--upstream "$f")
 done
 cd "$REPO_ROOT"
-uv run python -m vjaudit.cli judge verify-vcg "${args[@]}" --commit "$sha"
+run_python -m vjaudit.cli judge verify-vcg "${args[@]}" --commit "$sha"

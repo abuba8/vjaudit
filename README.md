@@ -8,13 +8,42 @@ shutdown, or small local judges), labelling with Claude, and a judge-vs-referenc
 language, plus the step-by-step Mac runbook.
 **GPU server and file-by-file reference: [docs/GUIDE.md](docs/GUIDE.md).**
 
-```bash
-uv python install 3.11 && uv sync && make sanity      # CPU tests
-bash scripts/download/download_all.sh                 # datasets (see the guide for sizes)
+## Install
 
-# On a 32 GB Apple-Silicon Mac (no GPU server, no OpenAI key):
-uv sync --extra mac
-make data-check PROFILE=mac && make data-sample PROFILE=mac && make pin PROFILE=mac && make smoke PROFILE=mac
+Python 3.11, 3.12 or 3.13. Use either a conda environment or uv.
+
+**Option A: conda** (for example an existing environment called `dl`)
+
+```bash
+conda activate dl
+pip install -e ".[mac]" pytest pytest-asyncio     # on a Mac; use ".[gpu]" on the GPU server
+make sanity                                       # CPU tests; must end with "passed" and no "failed"
 ```
+
+`pip install` may upgrade `torch` and `transformers` inside `dl` (the code needs `transformers>=4.57`).
+While a conda environment other than `base` is active, every `make` command uses that environment's
+`python` and `pytest`; uv is not needed.
+
+**Option B: uv**
+
+```bash
+uv python install 3.11
+uv sync --extra mac                               # on a Mac; --extra gpu on the GPU server
+make sanity
+```
+
+## First commands on a Mac
+
+```bash
+conda activate dl                                 # skip with uv
+export PROFILE=mac                                # every make command below then uses the Mac set-up
+make data-check
+make data-sample
+make pin
+make smoke
+```
+
+Then follow Part 5 of [docs/EXPLAINED.md](docs/EXPLAINED.md). The datasets come from
+`bash scripts/download/download_all.sh` (see the guide for sizes).
 
 Spec: `docs/superpowers/specs/` · Plan: `docs/superpowers/plans/` · Decisions: `docs/decisions.md`

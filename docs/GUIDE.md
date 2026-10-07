@@ -53,6 +53,19 @@ make sanity                  # runs the CPU test suite (~300 tests, a few second
 uv run python -m vjaudit.cli --help
 ```
 
+**Using conda instead of uv** (Python 3.11–3.13):
+
+```bash
+conda activate dl                                  # any environment name
+pip install -e ".[mac]" pytest pytest-asyncio      # ".[gpu]" on the GPU server; "." for CPU only
+make sanity
+python -m vjaudit.cli --help
+```
+
+The Makefile decides how to run Python: with an active conda environment other than `base`, or when uv is
+not installed, it calls `python`/`pytest` directly; otherwise `uv run`. Force either with `RUN=` or
+`RUN="uv run"`. In this guide, drop the `uv run` prefix from commands when you use conda.
+
 `make sanity` excludes tests that need a GPU (`gpu`), the OpenAI API (`api`), the prior pipeline's
 cached outputs (`legacy`), Hugging Face Hub access (`hf`) or real models on a Mac (`mac`).
 

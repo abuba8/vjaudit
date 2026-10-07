@@ -5,14 +5,25 @@ ifeq ($(origin PROFILE),undefined)
 PROFILE := $(or $(VJAUDIT_PROFILE),server)
 endif
 export VJAUDIT_PROFILE := $(PROFILE)
-CLI = uv run python -m vjaudit.cli
+# How Python runs: inside an active conda environment (other than base), or when uv is not installed, the
+# environment's own python/pytest are used; otherwise `uv run`. Override with RUN="uv run" or RUN=.
+ifeq ($(origin RUN),undefined)
+  ifneq ($(filter-out base,$(CONDA_DEFAULT_ENV)),)
+    RUN :=
+  else ifeq ($(shell command -v uv 2>/dev/null),)
+    RUN :=
+  else
+    RUN := uv run
+  endif
+endif
+CLI = $(strip $(RUN) python -m vjaudit.cli)
 # ALLOW_UNPINNED=1 / ALLOW_UNVERIFIED=1: quick tests only (results are not paper-grade).
 UNPINNED_FLAG = $(if $(ALLOW_UNPINNED),--allow-unpinned,)
 UNVERIFIED_FLAG = $(if $(ALLOW_UNVERIFIED),--allow-unverified,)
 CI_MARKERS = not gpu and not api and not legacy and not hf and not mac
 
 sanity:
-	uv run pytest -m "$(CI_MARKERS)" -q
+	$(strip $(RUN) pytest) -m "$(CI_MARKERS)" -q
 
 test: sanity
 
@@ -20,41 +31,41 @@ test: sanity
 SHARDS = 0 1 2
 
 data-check:
-	uv run python -m vjaudit.cli data check-availability
+	$(CLI) data check-availability
 
 data-sample:
-	uv run python -m vjaudit.cli data sample
+	$(CLI) data sample
 
 # One process per GPU; generators are split round-robin across the 3 shards.
 generate-annotated:
 	mkdir -p logs
-	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k uv run python -m vjaudit.cli gen run --subset annotated --shard $$k --num-shards 3 > logs/gen-annotated-$$k.log 2>&1 & done; wait
-	uv run python -m vjaudit.cli gen coverage --subset annotated
+	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k $(CLI) gen run --subset annotated --shard $$k --num-shards 3 > logs/gen-annotated-$$k.log 2>&1 & done; wait
+	$(CLI) gen coverage --subset annotated
 
 generate-main:
 	mkdir -p logs
-	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k uv run python -m vjaudit.cli gen run --subset main --shard $$k --num-shards 3 > logs/gen-main-$$k.log 2>&1 & done; wait
-	uv run python -m vjaudit.cli gen coverage --subset main
+	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k $(CLI) gen run --subset main --shard $$k --num-shards 3 > logs/gen-main-$$k.log 2>&1 & done; wait
+	$(CLI) gen coverage --subset main
 
 generate-mc:
 	mkdir -p logs
-	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k uv run python -m vjaudit.cli gen run --subset main --mc --shard $$k --num-shards 3 > logs/gen-mc-$$k.log 2>&1 & done; wait
-	uv run python -m vjaudit.cli gen mc-report
+	for k in $(SHARDS); do CUDA_VISIBLE_DEVICES=$$k $(CLI) gen run --subset main --mc --shard $$k --num-shards 3 > logs/gen-mc-$$k.log 2>&1 & done; wait
+	$(CLI) gen mc-report
 
 throughput:
-	uv run python scripts/throughput.py --n 50
+	$(strip $(RUN) python) scripts/throughput.py --n 50
 
 .PHONY: capture-gpt35
 # Dry run by default (prints per-stage cost estimates). Real run: make capture-gpt35 CONFIRM=1 [STAGES=S1,S2]
 capture-gpt35:
-	uv run python -m vjaudit.cli judge capture $(if $(STAGES),--stages $(STAGES),) $(if $(CONFIRM),--confirm,)
+	$(CLI) judge capture $(if $(STAGES),--stages $(STAGES),) $(if $(CONFIRM),--confirm,)
 
 .PHONY: freeze sp0-report
 freeze:
-	uv run python scripts/freeze_stage1.py
+	$(strip $(RUN) python) scripts/freeze_stage1.py
 
 sp0-report:
-	uv run python scripts/sp0_report.py configs/local/legacy.yaml docs/sp0_report.md
+	$(strip $(RUN) python) scripts/sp0_report.py configs/local/legacy.yaml docs/sp0_report.md
 
 # ---- Mac profile workflow (make <target> PROFILE=mac); see docs/EXPLAINED.md -----------------------------
 .PHONY: pin smoke run1 run2 judge-run1 judge-run2 annotate-export annotate-import annotate-status report
