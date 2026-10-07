@@ -171,3 +171,29 @@ def test_judge_generate_kwargs_greedy_and_sampling():
     s = generate_kwargs(1.0, 1, pad_token_id=5)
     assert s["do_sample"] is True and s["temperature"] == 1.0 and s["top_p"] == 1.0 and s["top_k"] == 0
     assert s["repetition_penalty"] == 1.0
+
+
+async def test_local_judges_never_run_at_the_same_time():
+    """Two local judges (e.g. at the M2→M3 boundary) must not run models concurrently on one GPU."""
+    import asyncio
+    import threading
+    import time
+
+    state = {"active": 0, "max": 0}
+    lock = threading.Lock()
+
+    class SlowBackend(FakeBackend):
+        def generate_once(self, prompt, max_new_tokens, temperature, seed):
+            with lock:
+                state["active"] += 1
+                state["max"] = max(state["max"], state["active"])
+            time.sleep(0.05)
+            with lock:
+                state["active"] -= 1
+            return super().generate_once(prompt, max_new_tokens, temperature, seed)
+
+    req = {"model": "m", "messages": MSGS, "max_tokens": 1, "n": 1, "logprobs": True, "top_logprobs": 2,
+           "temperature": 0}
+    a, b = LocalTransport(CFG, SlowBackend()), LocalTransport(API.model_copy(update={"id": "j2"}), SlowBackend())
+    await asyncio.gather(a(req), b(req), a(req), b(req))
+    assert state["max"] == 1

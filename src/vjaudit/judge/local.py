@@ -7,6 +7,7 @@ readout and report run unchanged for local judges.
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import Callable, Protocol
 
 import numpy as np
@@ -111,6 +112,9 @@ class HFCausalBackend:
         return self._tok.decode(ids, skip_special_tokens=True)
 
 
+_DEVICE_LOCK = threading.Lock()  # one local model runs at a time, across all local judges in this process
+
+
 class LocalTransport:
     """Async callable with the OpenAI transport contract, backed by a local model (one call at a time)."""
 
@@ -125,6 +129,10 @@ class LocalTransport:
             raise TransportError(422, "local_error", f"{type(e).__name__}: {e}") from e
 
     def _run(self, req: dict) -> dict:
+        with _DEVICE_LOCK:
+            return self._run_locked(req)
+
+    def _run_locked(self, req: dict) -> dict:
         be = self.backend
         prompt = be.render(req["messages"])
         temperature = 0.0 if req.get("temperature") == 0 else (req.get("temperature") or 1.0)
