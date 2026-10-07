@@ -13,15 +13,18 @@ app = typer.Typer(no_args_is_help=True, add_completion=False, help="Generation: 
 
 
 @app.command("pin-revisions")
-def pin_revisions_cmd(path: Path = typer.Option(None, help="default: <profile>/generators.yaml"),
+def pin_revisions_cmd(path: Path = typer.Option(None, help="one file only (default: the profile's generators.yaml "
+                                                           "and judges.yaml)"),
                       profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
-    """Resolve each generator's current HF revision SHA and write it into generators.yaml."""
-    from .generate.pin import pin_revisions
+    """Resolve each model's current HF revision SHA and write it into the profile's YAML files (needs Hub access)."""
+    from .generate import pin
 
     root = profile_root(profile)
     typer.echo(f"profile: {root.name}")
-    for gid, sha in pin_revisions(path or root / "generators.yaml").items():
-        typer.echo(f"{gid}: {sha}")
+    files = [path] if path else [f for f in (root / "generators.yaml", root / "judges.yaml") if f.exists()]
+    for f in files:
+        for mid, sha in pin.pin_revisions(f, resolver=pin.hf_resolver).items():
+            typer.echo(f"{mid}: {sha}")
 
 
 @app.command("render-golden")

@@ -57,6 +57,28 @@ def _groups(gens) -> dict[str, set[str]]:
     return {"core": judged - ablation, "ablation": ablation}
 
 
+@app.command("smoke")
+def smoke_cmd(allow_unpinned: bool = typer.Option(False, help="allow UNPINNED judge revisions (quick tests only)"),
+              paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+              profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
+    """Load each local judge and grade one fixed example with T-VCG and T-RUB; print verdict, margin, top tokens."""
+    from .judge import smoke
+    from .judge.factory import make_client
+
+    prof = open_profile(profile, paths)
+    rows = smoke.smoke_judges(prof, client_factory=lambda cfg, d: make_client(cfg, d, allow_unpinned=allow_unpinned))
+    if not rows:
+        typer.echo("no local judges (backend: transformers) in this profile")
+        return
+    typer.echo("| judge | template | verdict | margin | seconds | top tokens |\n|---|---|---|---|---|---|")
+    for r in rows:
+        margin = "—" if r["margin"] is None else f"{r['margin']:.3f}"
+        top = ", ".join(f"{t!r}:{lp:.2f}" for t, lp in r["top_tokens"][:3])
+        typer.echo(f"| {r['judge']} | {r['template']} | {r['verdict']} | {margin} | {r['seconds']} | {top} |")
+    if any(str(r["verdict"]).startswith("ERROR:") for r in rows):
+        raise typer.Exit(1)
+
+
 @app.command("capture")
 def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (default: all, in order)"),
                 confirm: bool = typer.Option(False, help="actually call the API (otherwise: dry run with estimates)"),
