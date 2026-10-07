@@ -19,3 +19,13 @@ or an integrity finding (contract §0 item 5).
 - Tooling ready (`scripts/sp0_report.py`). Outcome (a) cache reuse / (b) exemplars never reached the
   generator / (c) other must be recorded here after running on the machine with the legacy outputs.
   If (b): Gate G0 — notify all authors; record their decision on a BlackboxNLP correction.
+
+## 2026-10-06 — Mac profile (pipeline test on a 32 GB Apple-Silicon laptop)
+- New profile `configs/profiles/mac/`: generators Qwen2.5-VL-3B (short, sentence, blind), Qwen3-VL-2B and
+  LLaVA-OneVision-0.5B via `transformers` on MPS, 8 frames at 448 px; local judges Qwen3-4B-Instruct-2507
+  (main) and Qwen2.5-1.5B-Instruct (small); stages M1–M6, GPT-3.5 stages G1/G2 optional.
+- Samples: main 1,000 / annotated 100 / vid 30 per benchmark (Run 2 / Run 1).
+- No OpenAI key on the Mac: reference labels come from Claude by hand (`claude-manual`), exported as
+  `annotation/mac/claude/batch_NN.md`. They are a reference judge, never reported as human labels.
+- The server configs moved unchanged to `configs/profiles/server/`; per-profile artifacts and reports.
+- Spec: `docs/superpowers/specs/2026-10-06-mac-profile-design.md`; plan: `docs/superpowers/plans/2026-10-06-mac-profile.md`.

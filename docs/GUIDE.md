@@ -9,6 +9,11 @@ answer, and GPT-3.5's verdicts on all of them.
 - Plan (what was built): `docs/superpowers/plans/2026-10-04-stage1-capture-before-gpt35-shutdown.md`
 - Decisions log (dated changes): `docs/decisions.md`
 
+> **On a Mac, or without an OpenAI key?** Read **[docs/EXPLAINED.md](EXPLAINED.md)** first. It explains
+> the research idea and the code in plain language and has the complete Mac runbook (small local
+> models, local judges, labelling with Claude). This guide covers the GPU server and the file-by-file
+> reference.
+
 ---
 
 ## 1. What the pipeline does
@@ -44,12 +49,27 @@ resumable**: re-running a command skips work that is already stored. A crash nev
 # 1. install uv (https://docs.astral.sh/uv/) then:
 uv python install 3.11
 uv sync                      # CPU dependencies only
-make sanity                  # runs the CPU test suite (~200 tests, a few seconds)
+make sanity                  # runs the CPU test suite (~300 tests, a few seconds)
 uv run python -m vjaudit.cli --help
 ```
 
 `make sanity` excludes tests that need a GPU (`gpu`), the OpenAI API (`api`), the prior pipeline's
-cached outputs (`legacy`) or Hugging Face Hub access (`hf`).
+cached outputs (`legacy`), Hugging Face Hub access (`hf`) or real models on a Mac (`mac`).
+
+### Profiles: server and mac
+
+All model, judge and sampling settings live in a **profile**, a folder with three files:
+
+| Profile | Folder | For |
+|---|---|---|
+| `server` (default) | `configs/profiles/server/` | the GPU server: 5 generators on vLLM, GPT-3.5 capture stages S1–S7 |
+| `mac` | `configs/profiles/mac/` | a 32 GB Apple-Silicon Mac: 3 small generators and 2 local judges via `transformers` (see `docs/EXPLAINED.md`) |
+
+- Choose one with `make <target> PROFILE=mac`, or `--profile mac` on any CLI command, or the environment
+  variable `VJAUDIT_PROFILE`. Every command prints `profile: <name>` first.
+- Each profile writes to its own folders: `artifacts/<profile>/`, `artifacts/frames/<profile>/` and
+  `artifacts/api_cache/<profile>/`.
+- Reports are per profile too, for example `docs/samples_server.md` and `docs/capture_mac.md`.
 
 ---
 
@@ -63,7 +83,7 @@ come from the plan; **the hard deadline is the GPT-3.5 shutdown on 2026-10-23** 
 ```bash
 git clone <this repo> vjaudit && cd vjaudit
 uv python install 3.11
-uv sync --extra gpu          # adds vLLM, transformers, huggingface_hub (pinned in uv.lock)
+uv sync --extra gpu          # adds vLLM (Linux only), transformers, huggingface_hub (pinned in uv.lock)
 export HF_TOKEN=...          # Hugging Face token (some models/datasets need it)
 export OPENAI_API_KEY=...    # needed only for Steps 8–10
 make sanity
@@ -127,8 +147,8 @@ Gate G0. The rest of Stage 1 does not depend on it and continues.
 ### Step 4 — Availability check and samples (Oct 6–9)
 
 ```bash
-make data-check     # = vjaudit.cli data check-availability → docs/data_availability.md
-make data-sample    # = vjaudit.cli data sample → docs/samples.md
+make data-check     # = vjaudit.cli data check-availability → docs/data_availability_server.md
+make data-sample    # = vjaudit.cli data sample → docs/samples_server.md
 ```
 
 `data-check` loads all three benchmarks, finds each item's video (recursive search by file name), and
@@ -143,12 +163,12 @@ if a benchmark cannot fill its sample; that means a video-download problem to fi
 - the video-labelled subset of 200 questions, drawn from annotated.
 
 Sampling is stratified by question type. MSVD-QA gets ≥ 15 annotated questions per type. Annotated
-questions are split 40/60 into dev and test. Check the counts in `docs/samples.md`.
+questions are split 40/60 into dev and test. Check the counts in `docs/samples_server.md`.
 
 ### Step 5 — Pin models, freeze golden prompts, smoke test (Oct 8–11)
 
 ```bash
-uv run python -m vjaudit.cli gen pin-revisions     # writes HF revision SHAs into configs/generators.yaml
+uv run python -m vjaudit.cli gen pin-revisions     # writes HF revision SHAs into configs/profiles/server/generators.yaml
 uv run python -m vjaudit.cli gen render-golden     # renders the chat-template prompts per model family
 #   → inspect tests/generate/golden/*.txt by eye: the video placeholder is present (video mode),
 #     absent (blind mode), and the assistant turn is open at the end. Then commit them.
@@ -215,10 +235,10 @@ git commit -am "chore: verify T-VCG and vendor T-RUB"
 
 ```bash
 make capture-gpt35 STAGES=S1,S2                 # dry run: prints jobs and a cost estimate per stage
-make capture-gpt35 STAGES=S1,S2 CONFIRM=1       # sends requests; writes docs/gpt35_capture.md
+make capture-gpt35 STAGES=S1,S2 CONFIRM=1       # sends requests; writes docs/capture_server.md
 ```
 
-Check `docs/gpt35_capture.md` after S1:
+Check `docs/capture_server.md` after S1:
 
 - the **ok rate** must be ≥ 0.98;
 - the **api_no_logprob rate** must be ≤ 0.05.
@@ -226,7 +246,7 @@ Check `docs/gpt35_capture.md` after S1:
 If either fails, stop. Fix the parser or readout; every response is cached, so re-parsing costs
 nothing and needs no new API calls. Then continue.
 
-The capture stages (pinned in `configs/grids/stage1.yaml`, run strictly in this order):
+The capture stages (pinned in `configs/profiles/server/grid.yaml`, run strictly in this order):
 
 | Stage | Items | Systems | Template | Decoding |
 |---|---|---|---|---|
@@ -238,7 +258,7 @@ The capture stages (pinned in `configs/grids/stage1.yaml`, run strictly in this 
 | S6a–d | annotated, then main | 2 ablation | T-VCG, T-RUB | as S1/S2 |
 | S7 | annotated | 9 core | T-VCG | as S1, judge `gpt-3.5-turbo-1106` (snapshot variance) |
 
-Spend is capped per judge by `max_usd` in `configs/judges.yaml` (100 USD and 20 USD). If a request
+Spend is capped per judge by `max_usd` in `configs/profiles/server/judges.yaml` (100 USD and 20 USD). If a request
 returns `model_not_found`, capture stops cleanly, keeps everything captured, and appends an entry to
 `docs/decisions.md`.
 
@@ -279,10 +299,12 @@ final coverage per capture stage.
 
 | Layer | Package | Responsibility |
 |---|---|---|
-| Foundations | `hashing`, `config`, `paths`, `schemas`, `store` | ids and hashes, YAML config models, machine paths, record types, the artifact store |
+| Foundations | `hashing`, `config`, `paths`, `profile`, `device`, `schemas`, `store` | ids and hashes, YAML config models, machine paths, profiles, compute device, record types, the artifact store |
 | Data | `vjaudit.data` | load benchmarks → `Item`; find and check videos; stratified samples; frame cache |
-| Generation | `vjaudit.generate` | systems, prompt adapters per model family, vLLM engine, runner, coverage |
-| Judging | `vjaudit.judge` | judge templates and provenance, output parsers, logprob readout, OpenAI client, capture |
+| Generation | `vjaudit.generate` | systems, prompt adapters per model family, vLLM engine (server), transformers engine (Mac), runner, coverage, smoke check |
+| Judging | `vjaudit.judge` | judge templates and provenance, output parsers, logprob readout, OpenAI client, local judges (Mac), capture, smoke check |
+| Labelling | `vjaudit.annotate` | answer units, batch export for Claude or people, validated label import |
+| Reporting | `vjaudit.report` | κ, error rates, judge-vs-reference tables, visual gain |
 | Integrity | `vjaudit.legacy` | SP0 checks on the prior (BlackboxNLP) pipeline's outputs |
 | Release | `freeze` | deterministic exports and the manifest |
 | Interface | `cli*.py`, `Makefile`, `scripts/` | commands people run |
@@ -335,20 +357,23 @@ freeze.
 
 | File | Purpose |
 |---|---|
-| `pyproject.toml` | package metadata; CPU dependencies; `gpu` extra (vLLM, transformers, huggingface_hub); pytest markers |
-| `uv.lock` | exact versions of every dependency, including the `gpu` extra |
-| `Makefile` | one-word commands for every runbook step (`sanity`, `data-check`, `data-sample`, `generate-*`, `capture-gpt35`, `freeze`, `sp0-report`, `throughput`) |
+| `pyproject.toml` | package metadata; CPU dependencies; `gpu` extra (vLLM on Linux, transformers, huggingface_hub); `mac` extra (torch, torchvision, transformers, accelerate, huggingface_hub); pytest markers |
+| `uv.lock` | exact versions of every dependency, including both extras |
+| `Makefile` | one-word commands for every runbook step; `PROFILE=mac` selects the Mac profile. Server: `sanity`, `data-check`, `data-sample`, `generate-*`, `capture-gpt35`, `freeze`, `sp0-report`, `throughput`. Mac: `pin`, `smoke`, `run1`, `run2`, `judge-run1`, `judge-run2`, `annotate-export`, `annotate-import`, `annotate-status`, `report` |
 | `.github/workflows/ci.yml` | CI: CPU test suite on every push |
-| `.gitignore` | ignores `/data/`, `artifacts/*` (except the manifest), `configs/local/*.yaml`, logs |
+| `.gitignore` | ignores `/data/`, `artifacts/*` (except the manifest), `configs/local/*.yaml`, `/annotation/`, logs |
 
 ### `configs/`
 
 | File | Purpose |
 |---|---|
 | `benchmarks.yaml` | per benchmark: split, raw file names, which `paths.yaml` keys hold its annotations and videos |
-| `generators.yaml` | the 5 generators: HF repo, pinned revision, model family, frames per benchmark, styles, blind / frame-ablation variants |
-| `judges.yaml` | API judges (`gpt-3.5-turbo-0125`, `-1106`): price per 1M tokens, spend cap, concurrency |
-| `grids/stage1.yaml` | seed, sample sizes, MSVD per-type minimum, dev fraction, and the 10 capture stages in order |
+| `profiles/server/generators.yaml` | the 5 server generators: HF repo, pinned revision, model family, frames per benchmark, styles, blind / frame-ablation variants |
+| `profiles/server/judges.yaml` | API judges (`gpt-3.5-turbo-0125`, `-1106`): price per 1M tokens, spend cap, concurrency |
+| `profiles/server/grid.yaml` | seed, sample sizes, MSVD per-type minimum, dev fraction, and the 10 capture stages in order |
+| `profiles/mac/generators.yaml` | the 3 small Mac generators (`backend: hf`, 8 frames, `dtype: auto`) |
+| `profiles/mac/judges.yaml` | local judges Qwen3-4B and Qwen2.5-1.5B (`backend: transformers`, pinned revision), plus GPT-3.5 for the optional stages |
+| `profiles/mac/grid.yaml` | Mac samples (1,000 / 100 / 30), `frame_max_side: 448`, stages M1–M6 and optional G1–G2 |
 | `paths.example.yaml` | template for `configs/local/paths.yaml` (data, artifacts, frame cache, API cache locations) |
 | `legacy.example.yaml` | template for `configs/local/legacy.yaml` (where the prior pipeline's outputs are) |
 | `prompts/generation/{short,sentence,mc}.txt` | the exact generation prompts (`{question}` and `{a0}`…`{a4}` slots) |
@@ -363,14 +388,19 @@ freeze.
 | `hashing.py` | `canonical_json`, `config_hash` (sha256), `short_id` (sha1[:16]), `git_sha` |
 | `config.py` | pydantic models for every YAML file; `load_yaml(path, Model)` |
 | `paths.py` | `load_paths()` for `configs/local/paths.yaml`; `REPO_ROOT`, `CONFIGS` |
-| `schemas.py` | `Item`, `Generation`, `JudgeCall` record models (contract §8.2 + Stage-1 additions) |
+| `profile.py` | `load_profile()` → `Profile` (generators, judges, grid, per-profile artifact/cache folders); `VJAUDIT_PROFILE` |
+| `device.py` | `pick_device()` (mps → cuda → cpu) and `default_dtype()` |
+| `schemas.py` | `Item`, `Generation`, `JudgeCall`, `Unit`, `Label` record models (contract §8.2 + Stage-1 additions) |
 | `store.py` | `ArtifactStore` (append-only, resumable, content-addressed) and `stamp()` provenance |
 | `normalize.py` | `normalize_answer()` for de-duplicating answers into annotation units |
 | `freeze.py` | `freeze()`: sorted exports, deterministic API-cache tarball, manifest |
-| `cli.py` | root command `python -m vjaudit.cli` with groups `data`, `gen`, `judge` |
+| `cli.py` | root command `python -m vjaudit.cli` with groups `data`, `gen`, `judge`, `annotate`, `report` |
+| `cli_common.py` | the shared `--profile` option; prints `profile: <name>`; per-profile report paths |
 | `cli_data.py` | `data check-availability`, `data sample` |
-| `cli_gen.py` | `gen pin-revisions`, `render-golden`, `run`, `coverage`, `rerun-check`, `mc-report` |
-| `cli_judge.py` | `judge verify-vcg`, `vendor-rub`, `capture` |
+| `cli_gen.py` | `gen pin-revisions`, `render-golden`, `smoke`, `run`, `coverage`, `rerun-check`, `mc-report` |
+| `cli_judge.py` | `judge verify-vcg`, `vendor-rub`, `smoke`, `capture` |
+| `cli_annotate.py` | `annotate export`, `import`, `status` |
+| `cli_report.py` | `report summary` |
 
 ### `src/vjaudit/data/`
 
@@ -389,11 +419,14 @@ freeze.
 | File | Purpose |
 |---|---|
 | `systems.py` | `SystemSpec`; `expand_systems` (the 11 judged systems); `expand_mc_systems`; `parse_mc_letter` |
-| `adapters.py` | per-family message formats (Qwen-VL, InternVL, LLaVA-NeXT-Video); prompt filling; `HFChatRenderer` (pinned chat template); `golden_render` |
+| `adapters.py` | per-family message formats (Qwen-VL, InternVL, LLaVA-NeXT-Video, LLaVA-OneVision); prompt filling; `HFChatRenderer` (pinned chat template); `golden_render` |
 | `engine.py` | `VllmEngine` (greedy, pinned revision, 1 video per prompt) and `FakeEngine` (tests) |
+| `hf_engine.py` | `TransformersEngine`: greedy generation with `transformers` on MPS/CUDA/CPU, one request at a time; `close()` frees memory |
+| `factory.py` | `make_engine` (backend `vllm` or `hf`) and `make_renderer` |
+| `smoke.py` | `smoke_generators`: a few answers per generator, video and blind, with timings |
 | `runner.py` | `run_generation`: one `Generation` per (item, system), resumable, batched |
-| `coverage.py` | `run_subset` (sharded across GPUs), `coverage`, `mc_accuracy`, `rerun_check` |
-| `pin.py` | `pin_revisions`: writes HF revision SHAs into `generators.yaml`, keeping comments |
+| `coverage.py` | `run_subset` (sharded across GPUs; one engine at a time, closed before the next), `coverage`, `mc_accuracy`, `rerun_check` |
+| `pin.py` | `pin_revisions`: writes HF revision SHAs into a profile's `generators.yaml` / `judges.yaml`, keeping comments |
 
 ### `src/vjaudit/judge/`
 
@@ -403,7 +436,25 @@ freeze.
 | `parse.py` | `parse_vcg` (dict string → verdict, score, status); `parse_yes_no` |
 | `readout.py` | `token_class`, `margin_from_top`, `vcg_verdict_index`, `readout_vcg`, `readout_first_token`, `p_yes` |
 | `api_openai.py` | `OpenAIJudgeClient`: request-hash cache on disk, retries with backoff, spend cap, `ModelRetired` on `model_not_found` |
-| `capture.py` | `CaptureStage`, `build_jobs` (priority order, skip done), `run_capture` (stops cleanly), `write_capture_report` |
+| `local.py` | `content_from_logits`, `HFCausalBackend`, `LocalTransport`: a local judge that returns OpenAI-shaped replies with top-20 logprobs |
+| `factory.py` | `make_client`: OpenAI transport or `LocalTransport` (cache per judge and revision) |
+| `capture.py` | `CaptureStage` (incl. `optional`), `select_stages`, `build_jobs` (priority order, skip done), `run_capture` (stops cleanly), `write_capture_report` |
+| `smoke.py` | `smoke_judges`: one T-VCG and one T-RUB call per local judge |
+
+### `src/vjaudit/annotate/`
+
+| File | Purpose |
+|---|---|
+| `units.py` | `build_units` (one unit per question and normalised answer), `plan_batches` (never splits a question) |
+| `export.py` | `export_claude` (`batch_NN.md` to paste into Claude), `export_human` (`batch_NN.csv`), `manifest.json`; re-export adds only new units |
+| `importer.py` | `parse_label_csv` (finds the CSV block in a reply), `import_labels` (all-or-nothing validation), `validate_source` |
+
+### `src/vjaudit/report/`
+
+| File | Purpose |
+|---|---|
+| `metrics.py` | `cohen_kappa`, `error_rates` (FPR/FNR), `yes_rate` |
+| `summary.py` | `build_tables`, `visual_gain`, `write_summary` → `docs/results_<profile>.md` |
 
 ### `src/vjaudit/legacy/` (SP0)
 
@@ -438,6 +489,9 @@ freeze.
 | `judge/` | templates (frozen hash, upstream AST check, vendoring), parsers, readout (split tokens), API client (cache, retry, retirement, budget, concurrency), capture (order, resume, S5 samples, statuses, retirement, S7), capture CLI |
 | `legacy/` | SP0 tools on fixtures; `legacy`-marked regression to the published tables |
 | `scripts/` | download scripts parse, `--help` works offline, official URLs present |
+| `annotate/`, `report/` | units, export privacy, import validation (fences, CRLF, quoted notes, invented ids), CLI round trip; κ, FPR/FNR, gap, visual gain |
+| `test_profile.py`, `test_tooling.py`, `test_docs.py` | profiles and per-profile folders; Makefile/pyproject wiring; docs name only real targets, commands and paths |
+| `test_mac_real.py` | real Mac models (`mac` marker; `uv run pytest -m mac` on the Mac) |
 | `test_e2e.py` | the whole chain on tiny synthetic videos with a fake model and fake API |
 | `fixtures/` | small raw benchmark files, legacy-format JSONs, upstream-format script, OpenAI-format logprob payloads |
 | `helpers/factories.py` | valid `Item` / `Generation` / `JudgeCall` builders for tests |
@@ -451,6 +505,7 @@ make sanity                                  # CPU suite (what CI runs)
 uv run pytest tests/legacy -m legacy         # needs configs/local/legacy.yaml
 uv run pytest -m hf                          # needs HF Hub + rendered golden prompts
 uv run pytest -m gpu                         # needs CUDA + the gpu extra
+uv run pytest -m mac                         # on the Mac: loads Qwen3-VL-2B and Qwen2.5-1.5B (mac extra)
 uv run pytest -m api -k live_smoke           # one real GPT-3.5 call (needs OPENAI_API_KEY)
 ```
 
@@ -464,12 +519,12 @@ uv run pytest -m api -k live_smoke           # one real GPT-3.5 call (needs OPEN
 | `'item_pool' already exists … re-run with --force` | intended: derived pools are rebuilt, not mixed; add `--force` |
 | `FAILED <stage> <gen_id>: 400 …` after capture | that request failed for good (e.g. content filter); the rest continued; re-run to retry |
 | `… skipped: <video_id>: cannot decode` in generation logs | that video fails a full decode; the item stays missing in `gen coverage`; fix or replace the file and re-run |
-| `WARNING: anetqa has N available items < main sample 2000` | videos missing or not extracted; see `docs/data_availability.md` |
+| `WARNING: anetqa has N available items < main sample 2000` | videos missing or not extracted; see `docs/data_availability_server.md` |
 | `VllmEngine … revision is UNPINNED` | run `gen pin-revisions` (Step 5) |
 | `t-vcg is not verified` | Step 8 |
 | CUDA out of memory at 32 frames | set that model's `anetqa` frames to 16 and record it in `docs/decisions.md` |
 | `rerun-check` mismatches | record the vLLM version; make sure nothing else runs on that GPU; re-check |
-| capture stops with `BudgetExceeded` | raise `max_usd` in `configs/judges.yaml` deliberately, then re-run (finished calls are skipped) |
+| capture stops with `BudgetExceeded` | raise `max_usd` in `configs/profiles/server/judges.yaml` deliberately, then re-run (finished calls are skipped) |
 | capture stops with `ModelRetired` | the snapshot is gone; a decisions entry was written; freeze what exists (Step 12) |
 | megatools missing | `sudo apt install megatools` / `brew install megatools` |
 | `hf: command not found` | `uv sync --extra gpu` (provides `hf`) or `uv tool install huggingface_hub` |
