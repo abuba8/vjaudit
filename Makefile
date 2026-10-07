@@ -1,7 +1,10 @@
 .PHONY: sanity test
 # Which machine profile to use: configs/profiles/<PROFILE>/ (server = GPU server, mac = Apple-Silicon laptop).
-PROFILE ?= server
-export VJAUDIT_PROFILE = $(PROFILE)
+# Precedence: make ... PROFILE=x, then a PROFILE or VJAUDIT_PROFILE environment variable, then server.
+ifeq ($(origin PROFILE),undefined)
+PROFILE := $(or $(VJAUDIT_PROFILE),server)
+endif
+export VJAUDIT_PROFILE := $(PROFILE)
 CLI = uv run python -m vjaudit.cli
 # ALLOW_UNPINNED=1 / ALLOW_UNVERIFIED=1: quick tests only (results are not paper-grade).
 UNPINNED_FLAG = $(if $(ALLOW_UNPINNED),--allow-unpinned,)
