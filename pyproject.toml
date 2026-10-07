@@ -20,10 +20,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Installed only on the GPU server (see docs/GUIDE.md). Pin exact versions there with `uv lock`.
+# GPU server (Linux + CUDA): `uv sync --extra gpu`. vLLM exists only on Linux.
 gpu = [
-  "vllm>=0.11.0",
+  "vllm>=0.11.0; sys_platform == 'linux'",
   "transformers>=4.57",
+  "huggingface_hub>=0.25",
+]
+# Apple-Silicon Mac (MPS) or any machine without vLLM: `uv sync --extra mac`. See docs/EXPLAINED.md.
+mac = [
+  "torch>=2.5",
+  "torchvision",
+  "transformers>=4.57",
+  "accelerate",
   "huggingface_hub>=0.25",
 ]
 
@@ -45,4 +53,5 @@ markers = [
   "api: makes real OpenAI API calls",
   "legacy: needs the prior pipeline's cached artifacts (configs/local/legacy.yaml)",
   "hf: needs Hugging Face Hub access to pinned processors",
+  "mac: loads real models through transformers (run on the Mac: uv run pytest -m mac)",
 ]
