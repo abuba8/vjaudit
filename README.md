@@ -36,14 +36,15 @@ make sanity
 
 ```bash
 conda activate dl                                 # skip with uv
-export PROFILE=mac                                # every make command below then uses the Mac set-up
+export VJAUDIT_PROFILE=mac                        # make and CLI commands then use the Mac set-up
 make data-check
 make data-sample
 make pin
 make smoke
 ```
 
-Then follow Part 5 of [docs/EXPLAINED.md](docs/EXPLAINED.md). The datasets come from
+Then follow Part 5 of [docs/EXPLAINED.md](docs/EXPLAINED.md), or the command list in
+[WORKFLOW.md](WORKFLOW.md), which also traces each step through the code. The datasets come from
 `bash scripts/download/download_all.sh` (see the guide for sizes).
 
 Spec: `docs/superpowers/specs/` · Plan: `docs/superpowers/plans/` · Decisions: `docs/decisions.md`

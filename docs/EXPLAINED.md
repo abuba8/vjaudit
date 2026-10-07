@@ -434,8 +434,8 @@ Run every command from the repository folder (`vjaudit/`), in a terminal where y
 (`conda activate dl`). Add `PROFILE=mac` to every `make` command. Without it, the command uses the
 GPU-server profile; you will notice, because the first line of output says `profile: server`.
 
-> **Shortcut:** run `export PROFILE=mac` once in your terminal, and every `make` command in that terminal
-> uses the Mac profile.
+> **Shortcut:** run `export VJAUDIT_PROFILE=mac` once in your terminal. Every `make` command and every
+> `python -m vjaudit.cli` command in that terminal then uses the Mac profile.
 
 ### What you need
 
@@ -862,7 +862,7 @@ a few points in Run 1 as noise. With 1,000 answers (Run 2), the uncertainty shri
 
 | Symptom | Cause and fix |
 |---|---|
-| First line says `profile: server` | You forgot `PROFILE=mac`. Add it, or run `export PROFILE=mac` once. |
+| First line says `profile: server` | You forgot `PROFILE=mac`. Add it, or run `export VJAUDIT_PROFILE=mac` once. |
 | `revision is UNPINNED` | Run `make pin PROFILE=mac` (Step 4). For a quick test only, add `ALLOW_UNPINNED=1`. |
 | `t-vcg is not verified` (or `t-rub`) | Do Step 6, or add `ALLOW_UNVERIFIED=1` to test the pipeline. |
 | `no sampled items yet` | Run `make data-check PROFILE=mac` and `make data-sample PROFILE=mac` first. |
