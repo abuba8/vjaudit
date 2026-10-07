@@ -34,9 +34,14 @@ def select(items: list[Item], subset: str, mc: bool = False) -> list[Item]:
 
 
 def run_subset(store: ArtifactStore, items: list[Item], gens: list[GeneratorCfg], subset: str,
-               engine_factory: Callable[[GeneratorCfg], Engine], renderer_factory: Callable[[GeneratorCfg], object],
+               engine_factory: Callable[[GeneratorCfg], Engine],
+               renderer_factory: Callable[[GeneratorCfg, Engine], object],
                frame_cache, mc: bool = False, shard: int = 0, num_shards: int = 1, batch_size: int = 16) -> int:
-    """Generate every missing (item, system) for this shard's generators; load each engine at most once."""
+    """Generate every missing (item, system) for this shard's generators.
+
+    Each engine loads at most once and is closed (when it has ``close``) before the next generator loads, so
+    only one model is in memory at a time.
+    """
     chosen = select(items, subset, mc)
     benches = sorted({i.benchmark for i in chosen})
     have = _pairs(store)
@@ -52,9 +57,13 @@ def run_subset(store: ArtifactStore, items: list[Item], gens: list[GeneratorCfg]
         if not plan:
             continue
         engine = engine_factory(g)
-        adapter: Adapter = get_adapter(g.family, renderer_factory(g))
-        for spec, b_items in plan:
-            new += run_generation(store, b_items, spec, engine, frame_cache, g, adapter, batch_size)
+        try:
+            adapter: Adapter = get_adapter(g.family, renderer_factory(g, engine))
+            for spec, b_items in plan:
+                new += run_generation(store, b_items, spec, engine, frame_cache, g, adapter, batch_size)
+        finally:
+            if hasattr(engine, "close"):
+                engine.close()
     return new
 
 

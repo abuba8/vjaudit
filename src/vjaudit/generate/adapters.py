@@ -58,6 +58,12 @@ class LlavaNextVideoAdapter(Adapter):
     family = "llava-next-video"
 
 
+class LlavaOneVisionAdapter(Adapter):
+    """Same message structure as qwen-vl: a video item, then the text."""
+
+    family = "llava-onevision"
+
+
 class InternVLAdapter(Adapter):
     """InternVL chat templates take a plain string with a ``<video>`` placeholder."""
 
@@ -67,7 +73,7 @@ class InternVLAdapter(Adapter):
         return [{"role": "user", "content": text if blind else f"<video>\n{text}"}]
 
 
-ADAPTERS = {a.family: a for a in (QwenVLAdapter, LlavaNextVideoAdapter, InternVLAdapter)}
+ADAPTERS = {a.family: a for a in (QwenVLAdapter, LlavaNextVideoAdapter, LlavaOneVisionAdapter, InternVLAdapter)}
 
 
 def get_adapter(family: str, renderer: Renderer) -> Adapter:

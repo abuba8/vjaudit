@@ -34,7 +34,7 @@ def test_coverage_reports_missing_pairs(tmp_path, gens):
 def test_run_subset_annotated_then_main_skips_done(tmp_path, gens):
     store = ArtifactStore(tmp_path)
     items = _items()
-    kw = dict(engine_factory=lambda g: FakeEngine(lambda r: "x"), renderer_factory=lambda g: FakeRenderer(),
+    kw = dict(engine_factory=lambda g: FakeEngine(lambda r: "x"), renderer_factory=lambda g, e: FakeRenderer(),
               frame_cache=FakeFrameCache())
     n_ann = run_subset(store, items, gens, subset="annotated", **kw)
     assert n_ann == 4 * 11
@@ -49,7 +49,7 @@ def test_run_subset_sharding_partitions_generators(tmp_path, gens):
     for k in range(3):
         store = ArtifactStore(tmp_path / str(k))
         run_subset(store, items, gens, subset="annotated", engine_factory=lambda g: FakeEngine(lambda r: "x"),
-                   renderer_factory=lambda g: FakeRenderer(), frame_cache=FakeFrameCache(), shard=k, num_shards=3)
+                   renderer_factory=lambda g, e: FakeRenderer(), frame_cache=FakeFrameCache(), shard=k, num_shards=3)
         seen.append({r["system_id"] for r in store.iter("generation")})
     assert not (seen[0] & seen[1]) and not (seen[1] & seen[2]) and len(set().union(*seen)) == 11
 
@@ -59,7 +59,7 @@ def test_mc_run_and_accuracy(tmp_path, gens):
     items = _items()
     answers = itertools.cycle(["B", "(C)", "none"])
     run_subset(store, items, gens, subset="main", mc=True, engine_factory=lambda g: FakeEngine(lambda r: next(answers)),
-               renderer_factory=lambda g: FakeRenderer(), frame_cache=FakeFrameCache())
+               renderer_factory=lambda g, e: FakeRenderer(), frame_cache=FakeFrameCache())
     acc = mc_accuracy(store, items, [s.system_id for s in expand_mc_systems(gens)])
     assert set(acc) == {s.system_id for s in expand_mc_systems(gens)}
     total_n = sum(v["n"] for v in acc.values())

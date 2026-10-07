@@ -51,7 +51,7 @@ async def test_pipeline_end_to_end(tmp_path):
     gens = load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators
     fc = FrameCache(tmp_path / "frames")
     n = run_subset(store, items, gens, "main", engine_factory=lambda g: FakeEngine(lambda r: "a dog"),
-                   renderer_factory=lambda g: FakeRenderer(), frame_cache=fc)
+                   renderer_factory=lambda g, e: FakeRenderer(), frame_cache=fc)
     assert n == 4 * 11
     assert all(v == 0 for v in coverage(store, [i for i in items if i.in_main],
                                         [s.system_id for s in expand_systems(gens, "msvd")]).values())

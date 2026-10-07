@@ -33,8 +33,26 @@ def test_gen_mc_report_writes_table(tmp_path):
     gens = load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators
     items = [__import__("vjaudit.schemas", fromlist=["Item"]).Item(**r) for r in store.iter("item")]
     run_subset(store, items, gens, "main", engine_factory=lambda g: FakeEngine(lambda r: "A"),
-               renderer_factory=lambda g: FakeRenderer(), frame_cache=FakeFrameCache(), mc=True)
+               renderer_factory=lambda g, e: FakeRenderer(), frame_cache=FakeFrameCache(), mc=True)
     out = tmp_path / "mc.md"
     res = CliRunner().invoke(app, ["gen", "mc-report", "--paths", str(pf), "--out", str(out)])
     assert res.exit_code == 0, res.output
     assert "| qwen3vl8b-mc | 4 | 1.000 | 0 |" in out.read_text()
+
+
+def test_gen_smoke_cli_without_items_says_sample_first(tmp_paths):
+    res = CliRunner().invoke(app, ["gen", "smoke", "--profile", "mac", "--paths", str(tmp_paths)])
+    assert res.exit_code == 1 and "make data-sample" in res.output
+
+
+def test_gen_smoke_cli_prints_rows(tmp_paths, monkeypatch):
+    from vjaudit.generate import smoke
+    store = ArtifactStore(tmp_paths.parent / "a" / "mac")
+    it = make_item(0, in_annotated=True, in_main=True)
+    store.put("item", it, it.item_id)
+    monkeypatch.setattr(smoke, "smoke_generators", lambda prof, items, fc, **kw: [
+        {"generator": "g", "item_id": items[0].item_id, "mode": "video", "answer": "a dog", "seconds": 1.5,
+         "device": "mps"}])
+    res = CliRunner().invoke(app, ["gen", "smoke", "--profile", "mac", "--paths", str(tmp_paths)])
+    assert res.exit_code == 0, res.output
+    assert "a dog" in res.output and "mps" in res.output

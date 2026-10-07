@@ -46,23 +46,58 @@ def _load(profile: str | None, paths: Path):
     return prof, store, items, prof.generators
 
 
+UNPINNED_HELP = "allow models whose revision is UNPINNED (quick tests only: results are not paper-grade)"
+
+
+def _warn_unpinned(allow_unpinned: bool) -> None:
+    if allow_unpinned:
+        typer.echo("WARNING: --allow-unpinned: unpinned model revisions are allowed; results are not paper-grade")
+
+
 @app.command("run")
 def run_cmd(subset: str = typer.Option(..., help="annotated | main"), mc: bool = typer.Option(False),
             shard: int = typer.Option(0), num_shards: int = typer.Option(1), batch_size: int = typer.Option(16),
+            allow_unpinned: bool = typer.Option(False, help=UNPINNED_HELP),
             paths: Path = typer.Option(DEFAULT_PATHS_FILE),
             profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
-    """Generate every missing (item, system) for this shard's generators (vLLM, GPU)."""
+    """Generate every missing (item, system) for this shard's generators (vLLM on the server, transformers on a Mac)."""
     from .data.frames import FrameCache
-    from .generate.adapters import HFChatRenderer
     from .generate.coverage import run_subset
-    from .generate.engine import VllmEngine
+    from .generate.factory import make_engine, make_renderer
 
     prof, store, items, gens = _load(profile, paths)
-    n = run_subset(store, items, gens, subset, engine_factory=VllmEngine,
-                   renderer_factory=lambda g: HFChatRenderer(g.hf_repo, g.revision, g.family),
-                   frame_cache=FrameCache(prof.frame_cache), mc=mc, shard=shard, num_shards=num_shards,
-                   batch_size=batch_size)
+    _warn_unpinned(allow_unpinned)
+    n = run_subset(store, items, gens, subset, engine_factory=lambda g: make_engine(g, allow_unpinned),
+                   renderer_factory=make_renderer,
+                   frame_cache=FrameCache(prof.frame_cache, max_side=prof.grid.frame_max_side), mc=mc, shard=shard,
+                   num_shards=num_shards, batch_size=batch_size)
     typer.echo(f"shard {shard}/{num_shards}: {n} new generations")
+
+
+@app.command("smoke")
+def smoke_cmd(n_items: int = typer.Option(2, help="items per generator (each answered with video and blind)"),
+              allow_unpinned: bool = typer.Option(False, help=UNPINNED_HELP),
+              paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+              profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
+    """Load each generator, answer a few annotated items with video and blind, print answers and timings."""
+    from .data.frames import FrameCache
+    from .generate import smoke
+    from .generate.factory import make_engine
+
+    prof, _, items, _ = _load(profile, paths)
+    chosen = sorted((i for i in items if i.in_annotated and i.available), key=lambda i: i.item_id)[:n_items]
+    if not chosen:
+        typer.echo("no sampled items yet: run `make data-check` and `make data-sample` first (with the same PROFILE)")
+        raise typer.Exit(1)
+    _warn_unpinned(allow_unpinned)
+    rows = smoke.smoke_generators(prof, chosen, FrameCache(prof.frame_cache, max_side=prof.grid.frame_max_side),
+                                  engine_factory=lambda g: make_engine(g, allow_unpinned), n_items=n_items)
+    typer.echo("| generator | item | mode | seconds | device | answer |\n|---|---|---|---|---|---|")
+    for r in rows:
+        answer = r["answer"].replace("\n", " ").replace("|", "/")
+        typer.echo(f"| {r['generator']} | {r['item_id']} | {r['mode']} | {r['seconds']} | {r['device']} | {answer} |")
+    if any(r["answer"].startswith("ERROR:") for r in rows):
+        raise typer.Exit(1)
 
 
 @app.command("coverage")
@@ -92,17 +127,19 @@ def rerun_check_cmd(system: str = typer.Option(...), n: int = typer.Option(50), 
     import tempfile
 
     from .data.frames import FrameCache
-    from .generate.adapters import HFChatRenderer, get_adapter
+    from .generate.adapters import get_adapter
     from .generate.coverage import rerun_check
-    from .generate.engine import VllmEngine
+    from .generate.factory import make_engine, make_renderer
     from .generate.systems import expand_systems
 
     prof, store, items, gens = _load(profile, paths)
     spec = next(s for s in expand_systems(gens, benchmark) if s.system_id == system)
     gen = next(g for g in gens if g.id == spec.generator_id)
-    adapter = get_adapter(gen.family, HFChatRenderer(gen.hf_repo, gen.revision, gen.family))
-    same, total, mism = rerun_check(store, [i for i in items if i.benchmark == benchmark], spec, VllmEngine(gen),
-                                    FrameCache(prof.frame_cache), gen, adapter, n, Path(tempfile.mkdtemp()))
+    engine = make_engine(gen)
+    adapter = get_adapter(gen.family, make_renderer(gen, engine))
+    same, total, mism = rerun_check(store, [i for i in items if i.benchmark == benchmark], spec, engine,
+                                    FrameCache(prof.frame_cache, max_side=prof.grid.frame_max_side), gen, adapter, n,
+                                    Path(tempfile.mkdtemp()))
     typer.echo(f"{same}/{total} identical")
     for iid, old, new in mism:
         typer.echo(f"MISMATCH {iid}: {old!r} != {new!r}")
