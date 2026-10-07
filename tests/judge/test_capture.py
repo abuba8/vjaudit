@@ -9,7 +9,7 @@ from vjaudit.judge.api_openai import OpenAIJudgeClient, TransportError
 from vjaudit.judge.capture import CaptureStage, build_jobs, load_stages, run_capture
 from vjaudit.store import ArtifactStore
 
-STAGES = load_stages(load_yaml("configs/grids/stage1.yaml", GridCfg))
+STAGES = load_stages(load_yaml("configs/profiles/server/grid.yaml", GridCfg))
 GROUPS = {"core": {"qwen3vl8b", "qwen3vl8b-blind"}, "ablation": {"qwen3vl8b-f1"}}
 
 

@@ -23,7 +23,7 @@ def test_generator_answers_video_and_blind(gen_id):
     from vjaudit.generate.engine import VllmEngine
     from vjaudit.generate.systems import SystemSpec
 
-    gen = next(g for g in load_yaml("configs/generators.yaml", GeneratorsFile).generators if g.id == gen_id)
+    gen = next(g for g in load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators if g.id == gen_id)
     adapter = get_adapter(gen.family, HFChatRenderer(gen.hf_repo, gen.revision, gen.family))
     engine = VllmEngine(gen)
     n = gen.frames_for("anetqa")

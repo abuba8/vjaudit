@@ -11,7 +11,7 @@ from vjaudit.store import ArtifactStore
 
 
 def _store(tmp_path):
-    store = ArtifactStore(tmp_path / "a")
+    store = ArtifactStore(tmp_path / "a" / "server")  # the CLI's default profile is server
     for i in range(4):
         it = make_item(i, item_id=f"nextoe:test:{i}", benchmark="nextoe", in_main=True, in_annotated=True,
                        mc_options=list("abcde"), mc_answer_idx=0)
@@ -30,7 +30,7 @@ def test_gen_coverage_cli_reports_missing(tmp_path):
 
 def test_gen_mc_report_writes_table(tmp_path):
     store, pf = _store(tmp_path)
-    gens = load_yaml("configs/generators.yaml", GeneratorsFile).generators
+    gens = load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators
     items = [__import__("vjaudit.schemas", fromlist=["Item"]).Item(**r) for r in store.iter("item")]
     run_subset(store, items, gens, "main", engine_factory=lambda g: FakeEngine(lambda r: "A"),
                renderer_factory=lambda g: FakeRenderer(), frame_cache=FakeFrameCache(), mc=True)

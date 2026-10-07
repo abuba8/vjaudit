@@ -1,0 +1,38 @@
+# Mac profile generators: small video-language models that fit a 32 GB Apple-Silicon laptop.
+# They run through Hugging Face transformers on the Mac GPU (MPS). Pin the revisions once with:
+#   make pin PROFILE=mac
+# dtype "auto" = float16 on MPS, bfloat16 on CUDA, float32 on CPU.
+generators:
+  - id: qwen25vl3b
+    family: qwen-vl
+    hf_repo: Qwen/Qwen2.5-VL-3B-Instruct
+    revision: UNPINNED
+    backend: hf
+    dtype: auto
+    n_frames: {default: 8}
+    max_model_len: 32768
+    styles: [short, sentence]
+    blind: true
+    frame_ablation: []
+  - id: qwen3vl2b
+    family: qwen-vl
+    hf_repo: Qwen/Qwen3-VL-2B-Instruct
+    revision: UNPINNED
+    backend: hf
+    dtype: auto
+    n_frames: {default: 8}
+    max_model_len: 32768
+    styles: [short]
+    blind: false
+    frame_ablation: []
+  - id: llavaov05b
+    family: llava-onevision
+    hf_repo: llava-hf/llava-onevision-qwen2-0.5b-ov-hf
+    revision: UNPINNED
+    backend: hf
+    dtype: auto
+    n_frames: {default: 8}
+    max_model_len: 32768
+    styles: [short]
+    blind: false
+    frame_ablation: []

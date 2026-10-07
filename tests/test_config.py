@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_generators_yaml_validates():
-    gens = load_yaml(ROOT / "configs/generators.yaml", GeneratorsFile)
+    gens = load_yaml(ROOT / "configs/profiles/server/generators.yaml", GeneratorsFile)
     ids = [g.id for g in gens.generators]
     assert len(ids) == 5 and len(set(ids)) == 5
     assert {"qwen25vl7b", "qwen3vl8b", "qwen3vl2b", "internvl35_8b", "llavanextvideo7b"} == set(ids)
@@ -31,7 +31,7 @@ def test_duplicate_generator_ids_rejected():
 
 
 def test_judges_yaml_has_both_gpt35_snapshots():
-    judges = load_yaml(ROOT / "configs/judges.yaml", JudgesFile)
+    judges = load_yaml(ROOT / "configs/profiles/server/judges.yaml", JudgesFile)
     by_id = {j.id: j for j in judges.judges}
     assert by_id["gpt-3.5-turbo-0125"].max_usd == 100
     assert by_id["gpt-3.5-turbo-1106"].max_usd == 20
@@ -41,7 +41,7 @@ def test_judges_yaml_has_both_gpt35_snapshots():
 def test_benchmarks_and_grid_yaml_validate():
     b = load_yaml(ROOT / "configs/benchmarks.yaml", BenchmarksFile)
     assert {x.id for x in b.benchmarks} == {"msvd", "anetqa", "nextoe"}
-    g = load_yaml(ROOT / "configs/grids/stage1.yaml", GridCfg)
+    g = load_yaml(ROOT / "configs/profiles/server/grid.yaml", GridCfg)
     assert g.seed == 42 and g.sample_sizes == {"main": 2000, "annotated": 300, "vid": 200}
 
 

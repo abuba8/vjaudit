@@ -25,7 +25,7 @@ class FakeFrameCache:
 
 @pytest.fixture
 def gens():
-    return load_yaml("configs/generators.yaml", GeneratorsFile).generators
+    return load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators
 
 
 @pytest.fixture

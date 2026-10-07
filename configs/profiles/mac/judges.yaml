@@ -1,0 +1,29 @@
+# Mac profile judges. Local open models (no API key, no cost) graded through transformers.
+# Pin their revisions with `make pin PROFILE=mac` (it pins generators and these judges).
+# The GPT-3.5 entry is only used by the optional stages G1/G2 (needs OPENAI_API_KEY).
+judges:
+  - id: qwen3-4b
+    kind: open
+    backend: transformers
+    model: Qwen/Qwen3-4B-Instruct-2507
+    revision: UNPINNED
+    max_usd: 0
+    price_in_per_mtok: 0
+    price_out_per_mtok: 0
+    concurrency: 1
+  - id: qwen25-1.5b
+    kind: open
+    backend: transformers
+    model: Qwen/Qwen2.5-1.5B-Instruct
+    revision: UNPINNED
+    max_usd: 0
+    price_in_per_mtok: 0
+    price_out_per_mtok: 0
+    concurrency: 1
+  - id: gpt-3.5-turbo-0125
+    kind: api
+    model: gpt-3.5-turbo-0125
+    max_usd: 100
+    price_in_per_mtok: 0.50
+    price_out_per_mtok: 1.50
+    concurrency: 16

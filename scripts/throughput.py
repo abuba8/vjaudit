@@ -7,14 +7,12 @@ import argparse
 import time
 from pathlib import Path
 
-from vjaudit.config import GeneratorsFile, load_yaml
 from vjaudit.data.frames import FrameCache
 from vjaudit.generate.adapters import HFChatRenderer, get_adapter
 from vjaudit.generate.engine import VllmEngine
 from vjaudit.generate.systems import SystemSpec
-from vjaudit.paths import CONFIGS, load_paths
+from vjaudit.profile import load_profile
 from vjaudit.schemas import Item
-from vjaudit.store import ArtifactStore
 
 
 def main() -> None:
@@ -24,12 +22,12 @@ def main() -> None:
     ap.add_argument("--only", default=None)
     ap.add_argument("--out", default="docs/throughput.md")
     a = ap.parse_args()
-    p = load_paths()
-    items = [Item(**r) for r in ArtifactStore(p["artifacts"]).iter("item")
+    prof = load_profile()  # $VJAUDIT_PROFILE, default server
+    items = [Item(**r) for r in prof.store().iter("item")
              if r["benchmark"] == a.benchmark and r["in_annotated"] and r["available"]][: a.n]
-    fc = FrameCache(p["frame_cache"])
+    fc = FrameCache(prof.frame_cache)
     rows = []
-    for g in load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators:
+    for g in prof.generators:
         if a.only and g.id != a.only:
             continue
         engine = VllmEngine(g)

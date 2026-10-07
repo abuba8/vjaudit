@@ -41,7 +41,7 @@ class BenchmarksFile(_Strict):
 
 class GeneratorCfg(_Strict):
     id: str
-    family: Literal["qwen-vl", "internvl", "llava-next-video"]
+    family: Literal["qwen-vl", "internvl", "llava-next-video", "llava-onevision"]
     hf_repo: str
     revision: str
     backend: Literal["vllm", "hf"]
@@ -74,6 +74,9 @@ class JudgeCfg(_Strict):
     price_in_per_mtok: float
     price_out_per_mtok: float
     concurrency: int
+    backend: Literal["openai", "transformers"] = "openai"  # transformers = local open model (Mac profile)
+    revision: str = "UNPINNED"  # HF revision SHA for local judges; unused for API judges
+    chat_template_kwargs: dict = {}
 
 
 class JudgesFile(_Strict):
@@ -92,6 +95,7 @@ class GridCfg(_Strict):
     sample_sizes: dict[str, int]
     msvd_min_per: int
     frac_dev: float
+    frame_max_side: int = 768  # longest frame side after resizing (frame cache)
     capture_stages: list[dict] = []
 
 

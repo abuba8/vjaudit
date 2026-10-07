@@ -98,7 +98,9 @@ def golden_render(family: str, mode: str) -> str:
     from vjaudit.config import GeneratorsFile, load_yaml
     from vjaudit.store import stamp
 
-    gen = next(g for g in load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators if g.family == family)
+    # Golden prompts belong to the server models, whatever profile is active.
+    server = CONFIGS / "profiles" / "server" / "generators.yaml"
+    gen = next(g for g in load_yaml(server, GeneratorsFile).generators if g.family == family)
     item = Item(**stamp(dict(item_id="golden:test:0", benchmark="golden", split="test", video_id="v",
                              video_path="", question=GOLDEN_ITEM_QUESTION, answers_ref=["x"], qtype="what"), {}))
     spec = SystemSpec("golden", gen.id, "short", mode == "blind", 0 if mode == "blind" else 4)

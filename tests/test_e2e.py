@@ -48,7 +48,7 @@ async def test_pipeline_end_to_end(tmp_path):
         store.put("item", it, it.item_id)
     items = [Item(**r) for r in store.iter("item")]
 
-    gens = load_yaml("configs/generators.yaml", GeneratorsFile).generators
+    gens = load_yaml("configs/profiles/server/generators.yaml", GeneratorsFile).generators
     fc = FrameCache(tmp_path / "frames")
     n = run_subset(store, items, gens, "main", engine_factory=lambda g: FakeEngine(lambda r: "a dog"),
                    renderer_factory=lambda g: FakeRenderer(), frame_cache=fc)
@@ -56,7 +56,7 @@ async def test_pipeline_end_to_end(tmp_path):
     assert all(v == 0 for v in coverage(store, [i for i in items if i.in_main],
                                         [s.system_id for s in expand_systems(gens, "msvd")]).values())
 
-    stages = load_stages(load_yaml("configs/grids/stage1.yaml", GridCfg))
+    stages = load_stages(load_yaml("configs/profiles/server/grid.yaml", GridCfg))
     groups = _groups(gens)
     clients = {j: OpenAIJudgeClient(jc(j), tmp_path / "api_cache", transport=Transport())
                for j in ("gpt-3.5-turbo-0125", "gpt-3.5-turbo-1106")}

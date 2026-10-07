@@ -6,7 +6,9 @@ from pathlib import Path
 import typer
 import yaml
 
+from .cli_common import PROFILE_HELP, open_profile, profile_doc
 from .judge.templates import JUDGE_DIR, vendor_rub, verify_vcg_source
+from .paths import DEFAULT_PATHS_FILE
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Judging: template provenance and capture.")
 SOURCE = JUDGE_DIR / "source.yaml"
@@ -59,22 +61,20 @@ def _groups(gens) -> dict[str, set[str]]:
 def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (default: all, in order)"),
                 confirm: bool = typer.Option(False, help="actually call the API (otherwise: dry run with estimates)"),
                 allow_unverified: bool = typer.Option(False, help="run even if a template's provenance is unverified"),
-                paths: Path = typer.Option(Path("configs/local/paths.yaml")),
-                grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
-                judges: Path = typer.Option(Path("configs/judges.yaml")),
-                report: Path = typer.Option(Path("docs/gpt35_capture.md"))) -> None:
-    """Capture GPT-3.5 verdicts + logprobs in the pinned stage order (dry run unless --confirm)."""
+                paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+                profile: str = typer.Option(None, help=PROFILE_HELP),
+                report: Path = typer.Option(None, help="default: docs/capture_<profile>.md")) -> None:
+    """Capture judge verdicts + logprobs in the profile's stage order (dry run unless --confirm)."""
     import asyncio
 
-    from .config import GeneratorsFile, GridCfg, JudgesFile, load_yaml
     from .judge.api_openai import OpenAIJudgeClient
     from .judge.capture import build_jobs, load_stages, run_capture, write_capture_report
     from .judge.templates import render_rub, render_vcg, template_source
-    from .paths import CONFIGS, load_paths
     from .schemas import Item
-    from .store import ArtifactStore
 
-    all_stages = load_stages(load_yaml(grid, GridCfg))
+    prof = open_profile(profile, paths)
+    report = report or profile_doc(prof, "capture")
+    all_stages = load_stages(prof.grid)
     wanted = [s for s in stages.split(",") if s] or [s.name for s in all_stages]
     chosen = [s for s in all_stages if s.name in wanted]
     for t in sorted({s.template for s in chosen}):
@@ -82,13 +82,10 @@ def capture_cmd(stages: str = typer.Option("", help="comma list, e.g. S1,S2 (def
             typer.echo(f"{t} is not verified (configs/prompts/judge/source.yaml); see docs/GUIDE.md "
                        "'Verify the judge prompts', or pass --allow-unverified")
             raise typer.Exit(2)
-    p = load_paths(paths)
-    store = ArtifactStore(p["artifacts"])
+    store = prof.store()
     items = [Item(**r) for r in store.iter("item")]
-    gens = load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators
-    groups = _groups(gens)
-    cfgs = {j.id: j for j in load_yaml(judges, JudgesFile).judges}
-    clients = {jid: OpenAIJudgeClient(cfgs[jid], p["api_cache"]) for jid in {s.judge_id for s in chosen}}
+    groups = _groups(prof.generators)
+    clients = {jid: OpenAIJudgeClient(prof.judge(jid), prof.api_cache) for jid in {s.judge_id for s in chosen}}
     jobs = build_jobs(store, chosen, items, groups)
     total = 0.0
     for st in chosen:

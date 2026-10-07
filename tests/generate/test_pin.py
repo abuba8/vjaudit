@@ -6,7 +6,7 @@ from vjaudit.generate.pin import pin_revisions
 
 def test_pin_revisions_rewrites_only_revision_lines(tmp_path):
     p = tmp_path / "generators.yaml"
-    shutil.copy("configs/generators.yaml", p)
+    shutil.copy("configs/profiles/server/generators.yaml", p)
     before = p.read_text()
     got = pin_revisions(p, resolver=lambda repo: "sha-" + repo.split("/")[1].lower())
     after = p.read_text()

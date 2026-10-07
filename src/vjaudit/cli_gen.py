@@ -5,17 +5,22 @@ from pathlib import Path
 
 import typer
 
-from .paths import CONFIGS
+from .cli_common import PROFILE_HELP, open_profile
+from .paths import DEFAULT_PATHS_FILE
+from .profile import profile_root
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Generation: pinning, runs, coverage.")
 
 
 @app.command("pin-revisions")
-def pin_revisions_cmd(path: Path = typer.Option(CONFIGS / "generators.yaml")) -> None:
+def pin_revisions_cmd(path: Path = typer.Option(None, help="default: <profile>/generators.yaml"),
+                      profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
     """Resolve each generator's current HF revision SHA and write it into generators.yaml."""
     from .generate.pin import pin_revisions
 
-    for gid, sha in pin_revisions(path).items():
+    root = profile_root(profile)
+    typer.echo(f"profile: {root.name}")
+    for gid, sha in pin_revisions(path or root / "generators.yaml").items():
         typer.echo(f"{gid}: {sha}")
 
 
@@ -32,48 +37,43 @@ def render_golden_cmd(out_dir: Path = typer.Option(Path("tests/generate/golden")
             typer.echo(f"--- {family} / {mode} ---\n{text}\n")
 
 
-def _load(paths: Path):
-    from .config import GeneratorsFile, load_yaml
-    from .paths import load_paths
+def _load(profile: str | None, paths: Path):
     from .schemas import Item
-    from .store import ArtifactStore
 
-    p = load_paths(paths)
-    store = ArtifactStore(p["artifacts"])
+    prof = open_profile(profile, paths)
+    store = prof.store()
     items = [Item(**r) for r in store.iter("item")]
-    gens = load_yaml(CONFIGS / "generators.yaml", GeneratorsFile).generators
-    return p, store, items, gens
-
-
-from .paths import DEFAULT_PATHS_FILE  # noqa: E402
+    return prof, store, items, prof.generators
 
 
 @app.command("run")
 def run_cmd(subset: str = typer.Option(..., help="annotated | main"), mc: bool = typer.Option(False),
             shard: int = typer.Option(0), num_shards: int = typer.Option(1), batch_size: int = typer.Option(16),
-            paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+            paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+            profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
     """Generate every missing (item, system) for this shard's generators (vLLM, GPU)."""
     from .data.frames import FrameCache
     from .generate.adapters import HFChatRenderer
     from .generate.coverage import run_subset
     from .generate.engine import VllmEngine
 
-    p, store, items, gens = _load(paths)
+    prof, store, items, gens = _load(profile, paths)
     n = run_subset(store, items, gens, subset, engine_factory=VllmEngine,
                    renderer_factory=lambda g: HFChatRenderer(g.hf_repo, g.revision, g.family),
-                   frame_cache=FrameCache(p["frame_cache"]), mc=mc, shard=shard, num_shards=num_shards,
+                   frame_cache=FrameCache(prof.frame_cache), mc=mc, shard=shard, num_shards=num_shards,
                    batch_size=batch_size)
     typer.echo(f"shard {shard}/{num_shards}: {n} new generations")
 
 
 @app.command("coverage")
 def coverage_cmd(subset: str = typer.Option(...), mc: bool = typer.Option(False),
-                 paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+                 paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+                 profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
     """Print missing (item, system) pairs per benchmark and system."""
     from .generate.coverage import coverage, select
     from .generate.systems import expand_mc_systems, expand_systems
 
-    _, store, items, gens = _load(paths)
+    _, store, items, gens = _load(profile, paths)
     chosen = select(items, subset, mc)
     total = 0
     for b in sorted({i.benchmark for i in chosen}):
@@ -86,7 +86,8 @@ def coverage_cmd(subset: str = typer.Option(...), mc: bool = typer.Option(False)
 
 @app.command("rerun-check")
 def rerun_check_cmd(system: str = typer.Option(...), n: int = typer.Option(50), benchmark: str = typer.Option("msvd"),
-                    paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+                    paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+                    profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
     """Regenerate n items for one system into a scratch store and compare outputs (SP2 acceptance)."""
     import tempfile
 
@@ -96,12 +97,12 @@ def rerun_check_cmd(system: str = typer.Option(...), n: int = typer.Option(50), 
     from .generate.engine import VllmEngine
     from .generate.systems import expand_systems
 
-    p, store, items, gens = _load(paths)
+    prof, store, items, gens = _load(profile, paths)
     spec = next(s for s in expand_systems(gens, benchmark) if s.system_id == system)
     gen = next(g for g in gens if g.id == spec.generator_id)
     adapter = get_adapter(gen.family, HFChatRenderer(gen.hf_repo, gen.revision, gen.family))
     same, total, mism = rerun_check(store, [i for i in items if i.benchmark == benchmark], spec, VllmEngine(gen),
-                                    FrameCache(p["frame_cache"]), gen, adapter, n, Path(tempfile.mkdtemp()))
+                                    FrameCache(prof.frame_cache), gen, adapter, n, Path(tempfile.mkdtemp()))
     typer.echo(f"{same}/{total} identical")
     for iid, old, new in mism:
         typer.echo(f"MISMATCH {iid}: {old!r} != {new!r}")
@@ -110,12 +111,13 @@ def rerun_check_cmd(system: str = typer.Option(...), n: int = typer.Option(50), 
 
 @app.command("mc-report")
 def mc_report_cmd(out: Path = typer.Option(Path("docs/mc_anchor.md")),
-                  paths: Path = typer.Option(DEFAULT_PATHS_FILE)) -> None:
+                  paths: Path = typer.Option(DEFAULT_PATHS_FILE),
+                  profile: str = typer.Option(None, help=PROFILE_HELP)) -> None:
     """Write the judge-free NExT MC-anchor accuracy table."""
     from .generate.coverage import mc_accuracy
     from .generate.systems import expand_mc_systems
 
-    _, store, items, gens = _load(paths)
+    _, store, items, gens = _load(profile, paths)
     acc = mc_accuracy(store, items, [s.system_id for s in expand_mc_systems(gens)])
     lines = ["# NExT-QA multiple-choice anchor (exact match, no judge)", "",
              "| system | n | accuracy | unparseable |", "|---|---|---|---|"]

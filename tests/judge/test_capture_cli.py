@@ -9,7 +9,7 @@ from vjaudit.store import ArtifactStore
 
 
 def _paths(tmp_path):
-    store = ArtifactStore(tmp_path / "a")
+    store = ArtifactStore(tmp_path / "a" / "server")  # the CLI's default profile is server
     for i in range(2):
         it = make_item(i, item_id=f"msvd:test:{i}", in_main=True, in_annotated=True)
         store.put("item", it, it.item_id)

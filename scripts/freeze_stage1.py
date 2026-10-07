@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 
 from vjaudit.freeze import freeze
-from vjaudit.paths import load_paths
-from vjaudit.store import ArtifactStore
+from vjaudit.profile import load_profile
 
 if __name__ == "__main__":
-    p = load_paths()
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else p["artifacts"] / "freeze-stage1"
-    for e in freeze(ArtifactStore(p["artifacts"]), p["api_cache"], out, manifest=Path("artifacts/manifest.jsonl")):
+    prof = load_profile()  # $VJAUDIT_PROFILE, default server
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else prof.artifacts / "freeze-stage1"
+    manifest = Path("artifacts/manifest.jsonl") if prof.name == "server" else Path(f"artifacts/manifest_{prof.name}.jsonl")
+    for e in freeze(prof.store(), prof.api_cache, out, manifest=manifest):
         print(f"{e.kind:12s} {e.n_records:8d}  {e.sha256}  {e.path}")

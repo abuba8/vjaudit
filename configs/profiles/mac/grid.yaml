@@ -1,0 +1,27 @@
+name: mac
+seed: 42
+benchmarks: [msvd, anetqa, nextoe]
+# Run 1 = annotated (100 per benchmark). Run 2 = main (1,000 per benchmark; reuses run-1 answers).
+sample_sizes: {main: 1000, annotated: 100, vid: 30}
+msvd_min_per: 15
+frac_dev: 0.4
+frame_max_side: 448
+# Judge stages, run in this order. core = all 5 Mac systems (no frame-ablation systems on the Mac).
+# Optional stages (G1, G2) run only when named: --stages G1,G2 (needs OPENAI_API_KEY).
+capture_stages:
+  - {name: M1, judge_id: qwen3-4b, subset: annotated, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: M2, judge_id: qwen3-4b, subset: annotated, systems: core, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: M3, judge_id: qwen25-1.5b, subset: annotated, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: M4, judge_id: qwen25-1.5b, subset: annotated, systems: core, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: M5, judge_id: qwen3-4b, subset: main, systems: core, template: t-vcg, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: M6, judge_id: qwen3-4b, subset: main, systems: core, template: t-rub, decoding_tag: t0,
+     request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: G1, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: core, template: t-vcg, decoding_tag: t0,
+     optional: true, request: {temperature: 0, max_tokens: 64, logprobs: true, top_logprobs: 20, n: 1}}
+  - {name: G2, judge_id: gpt-3.5-turbo-0125, subset: annotated, systems: core, template: t-rub, decoding_tag: t0,
+     optional: true, request: {temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 20, n: 1}}

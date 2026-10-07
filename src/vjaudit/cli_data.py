@@ -5,7 +5,8 @@ from pathlib import Path
 
 import typer
 
-from .config import BenchmarksFile, GridCfg, load_yaml
+from .cli_common import PROFILE_HELP, open_profile, profile_doc
+from .config import BenchmarksFile, load_yaml
 from .data.availability import check_availability
 from .data.loaders import load_benchmark
 from .paths import DEFAULT_PATHS_FILE, load_paths
@@ -18,14 +19,17 @@ app = typer.Typer(no_args_is_help=True, add_completion=False, help="Data loading
 def check_availability_cmd(
     paths: Path = typer.Option(DEFAULT_PATHS_FILE, help="paths.yaml"),
     benchmarks: Path = typer.Option(Path("configs/benchmarks.yaml")),
-    report: Path = typer.Option(Path("docs/data_availability.md")),
-    grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
+    report: Path = typer.Option(None, help="default: docs/data_availability_<profile>.md"),
+    profile: str = typer.Option(None, help=PROFILE_HELP),
     force: bool = typer.Option(False, help="rebuild: archive the existing pool first"),
 ) -> None:
     """Load every benchmark, resolve + probe its videos, store the pool as kind 'item_pool'."""
+    prof = open_profile(profile, paths)
+    report = report or profile_doc(prof, "data_availability")
+    report.parent.mkdir(parents=True, exist_ok=True)
     p = load_paths(paths)
     cfg = load_yaml(benchmarks, BenchmarksFile)
-    store = ArtifactStore(p["artifacts"])
+    store = prof.store()
     _guard_rebuild(store, "item_pool", force)
     items = []
     for b in cfg.benchmarks:
@@ -36,7 +40,7 @@ def check_availability_cmd(
         store.put("item_pool", it, it.item_id)
     _merge_reports(report, [report.with_suffix(f".{b.id}.md") for b in cfg.benchmarks])
     n_ok = sum(i.available for i in items)
-    main_n = load_yaml(grid, GridCfg).sample_sizes["main"]
+    main_n = prof.grid.sample_sizes["main"]
     for b in cfg.benchmarks:
         n_b = sum(i.available for i in items if i.benchmark == b.id)
         if n_b < main_n:
@@ -64,8 +68,8 @@ def _merge_reports(out: Path, parts: list[Path]) -> None:
 @app.command("sample")
 def sample_cmd(
     paths: Path = typer.Option(DEFAULT_PATHS_FILE),
-    grid: Path = typer.Option(Path("configs/grids/stage1.yaml")),
-    report: Path = typer.Option(Path("docs/samples.md")),
+    report: Path = typer.Option(None, help="default: docs/samples_<profile>.md"),
+    profile: str = typer.Option(None, help=PROFILE_HELP),
     force: bool = typer.Option(False, help="re-sample: archive the existing items first"),
 ) -> None:
     """Draw main ⊃ annotated ⊃ vid samples and the dev/test split; store kind 'item'."""
@@ -74,8 +78,10 @@ def sample_cmd(
     from .data.sampling import assign_nested, split_dev_test
     from .schemas import Item
 
-    g = load_yaml(grid, GridCfg)
-    store = ArtifactStore(load_paths(paths)["artifacts"])
+    prof = open_profile(profile, paths)
+    report = report or profile_doc(prof, "samples")
+    g = prof.grid
+    store = prof.store()
     _guard_rebuild(store, "item", force)
     pool = [Item(**r) for r in store.iter("item_pool")]
     s = g.sample_sizes
