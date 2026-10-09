@@ -5,7 +5,8 @@ that runs, what it reads and what it writes. Part 2 lists the exact commands, in
 on your Mac with the conda environment `dl`.
 
 For the research idea in plain language, read `docs/EXPLAINED.md`. For the differences from the old
-version, read `differences.md`.
+version, read `differences.md`. To run everything from Jupyter instead of the terminal, open
+`notebooks/pipeline.ipynb`: the same steps, written out in one self-contained notebook.
 
 ---
 

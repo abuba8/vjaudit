@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from vjaudit.cli import app
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS = ["docs/EXPLAINED.md", "docs/GUIDE.md", "README.md", "WORKFLOW.md"]
+DOCS = ["docs/EXPLAINED.md", "docs/GUIDE.md", "README.md", "WORKFLOW.md", "notebooks/README.md"]
 MAKE_TARGETS = set(re.findall(r"^([a-z0-9][a-z0-9-]*):", (ROOT / "Makefile").read_text(), re.M))
 
 

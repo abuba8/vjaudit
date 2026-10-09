@@ -430,6 +430,9 @@ Add `--help` to any command to see its options, for example
 
 ## 5. Running it on your Mac
 
+> **Prefer Jupyter?** `notebooks/pipeline.ipynb` runs the same steps in one explained, self-contained
+> notebook; its section 0 says how. The commands below are the terminal version.
+
 Run every command from the repository folder (`vjaudit/`), in a terminal where your environment is active
 (`conda activate dl`). Add `PROFILE=mac` to every `make` command. Without it, the command uses the
 GPU-server profile; you will notice, because the first line of output says `profile: server`.
