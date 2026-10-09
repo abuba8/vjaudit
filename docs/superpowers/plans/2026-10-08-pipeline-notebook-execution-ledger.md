@@ -35,7 +35,7 @@ Task 6: complete (commits 8f4f05e..06c3c47, tests: make sanity → 391 passed, 1
 Task 6: Ruling: fixed my own README edit that had attached the datasets sentence to the notebook paragraph — cost if wrong: none.
 
 ## Final review
-Final: review (opus, range 4317fbe..f7c8491) — "Ready to merge? With fixes": 1 Critical, 4 Important, 13 Minor.
+Final: review (opus, range 4317fbe..f7c8491) — "Ready to merge? With fixes": 1 Critical, 4 Important, 12 Minor (plus one of mine, the last deferred item).
 Final: fixed Critical 1 (restart path: sections 8, 9, 11 raised NameError after "run sections 2 and 3, then any section") — section 3 now runs the definition cells of sections 4–11 from the saved notebook (`load_definitions`), and says to save after editing a definition — test_after_a_restart_sections_2_and_3_then_any_section[4..11] RED (8, 9, 11) → GREEN, suite 407/407.
 Final: fixed Important 2 (crash safety) — Store removes a cut-off last line before appending (a complete row missing only its newline is kept), and a corrupt row names its file and line; API cache entries are written to a temp file and renamed, unreadable entries are skipped and asked again — test_store_repairs_a_cut_off_last_line, test_store_names_file_and_line_of_a_broken_row, test_api_cache_survives_a_broken_file RED→GREEN, suite 407/407.
 Final: fixed Important 3 (a changed set-up mixed old and new answers in sections 9–11) — `current_generations` keeps answers whose (benchmark, system, config hash) match the current profile; used by coverage, run_stages, the section 10 export and the section 11 report; section 8 prints how many older answers are kept but unused; new row in section 12 — test_after_a_setup_change_only_current_answers_are_used RED→GREEN, suite 407/407.

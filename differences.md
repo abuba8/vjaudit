@@ -8,10 +8,10 @@
 | Runs on | the GPU server (3× A30, vLLM) | the GPU server **and** a 32 GB Apple-Silicon Mac |
 | Judges | GPT-3.5 through the OpenAI API (needs a key) | the same, **or** small local judges (no key, no cost) |
 | Install | uv, Python 3.11 | conda (e.g. `dl`) or uv, Python 3.11–3.13 |
-| CPU tests | 202 | 391 |
+| CPU tests | 202 | 407 |
 
-**Size of the change:** 97 files: 57 added, 37 modified, 3 moved;
-11,220 lines added and 410 removed. This file (`differences.md`) is not counted.
+**Size of the change:** 98 files: 58 added, 37 modified, 3 moved;
+11,597 lines added and 410 removed. This file (`differences.md`) is not counted.
 
 **Data:** v2 does not copy the datasets. Its `configs/local/paths.yaml` points to `../vjaudit/data/`.
 
@@ -58,7 +58,7 @@
 
 ## 3. File by file
 
-### 3.1 Added (57)
+### 3.1 Added (58)
 
 | File | What it is | Lines |
 |---|---|---|
@@ -69,11 +69,12 @@
 | `docs/EXPLAINED.md` | plain-language explanation of the idea and the code, and the step-by-step Mac runbook | +912 / −0 |
 | `docs/superpowers/plans/2026-10-06-mac-profile-execution-ledger.md` | every decision made while building v2, review fixes and deferred items | +85 / −0 |
 | `docs/superpowers/plans/2026-10-06-mac-profile.md` | implementation plan for v2 | +495 / −0 |
+| `docs/superpowers/plans/2026-10-08-pipeline-notebook-execution-ledger.md` | every decision made while building the notebook, its review fixes and deferred items | +67 / −0 |
 | `docs/superpowers/plans/2026-10-08-pipeline-notebook.md` | implementation plan for the notebook | +187 / −0 |
 | `docs/superpowers/specs/2026-10-06-mac-profile-design.md` | design spec for v2 | +218 / −0 |
 | `docs/superpowers/specs/2026-10-08-pipeline-notebook-design.md` | design spec for the notebook | +256 / −0 |
 | `notebooks/README.md` | how to open and run the notebook | +16 / −0 |
-| `notebooks/pipeline.ipynb` | the whole pipeline in one self-contained, explained Jupyter notebook (sections 0–12; Mac or server via one setting; dry-run mode) | +2868 / −0 |
+| `notebooks/pipeline.ipynb` | the whole pipeline in one self-contained, explained Jupyter notebook (sections 0–12; Mac or server via one setting; dry-run mode) | +3002 / −0 |
 | `src/vjaudit/annotate/__init__.py` | new package: labelling | +1 / −0 |
 | `src/vjaudit/annotate/export.py` | writes `batch_NN.md` files for Claude and `batch_NN.csv` sheets for people, plus `manifest.json` | +128 / −0 |
 | `src/vjaudit/annotate/importer.py` | reads Claude's reply or a filled sheet, validates every row, stores labels only if all rows are valid | +115 / −0 |
@@ -105,11 +106,11 @@
 | `tests/judge/test_local.py` | tests for the local judge (token probabilities, margins, errors, caching) | +199 / −0 |
 | `tests/notebook/__init__.py` | tests for the notebook | +0 / −0 |
 | `tests/notebook/conftest.py` | test helpers: run the notebook's definition cells, or the whole notebook | +37 / −0 |
-| `tests/notebook/test_data_sections.py` | notebook sections 4–6 give the same results as the package (loading, video check, sampling) | +85 / −0 |
-| `tests/notebook/test_execute.py` | runs the whole notebook in dry-run mode on synthetic data, for the Mac and the server profile | +86 / −0 |
-| `tests/notebook/test_generation_sections.py` | notebook sections 7–8: frames, systems, prompts, resumable generation | +124 / −0 |
+| `tests/notebook/test_data_sections.py` | notebook sections 3–6: the results store survives a crash; loading, video check and sampling give the same results as the package; the video check resumes | +154 / −0 |
+| `tests/notebook/test_execute.py` | runs the whole notebook in dry-run mode on synthetic data, for the Mac and the server profile, and checks that after a restart sections 2–3 then any section run | +120 / −0 |
+| `tests/notebook/test_generation_sections.py` | notebook sections 7–8: frames, systems, prompts, resumable generation | +175 / −0 |
 | `tests/notebook/test_hygiene.py` | the notebook imports nothing from vjaudit, is saved without outputs, and every section is in its table of contents | +72 / −0 |
-| `tests/notebook/test_judge_section.py` | notebook section 9: templates, parsing, margins, API retries and cache, judge stages | +152 / −0 |
+| `tests/notebook/test_judge_section.py` | notebook section 9: templates, parsing, margins, API retries and cache, judge stages | +174 / −0 |
 | `tests/notebook/test_label_report_sections.py` | notebook sections 10–11: units, batch files, label import, metrics, report | +163 / −0 |
 | `tests/report/__init__.py` | tests for the report package | +0 / −0 |
 | `tests/report/test_cli_report.py` | tests for the report package | +14 / −0 |
