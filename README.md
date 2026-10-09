@@ -44,10 +44,10 @@ make smoke
 ```
 
 Then follow Part 5 of [docs/EXPLAINED.md](docs/EXPLAINED.md), or the command list in
-[WORKFLOW.md](WORKFLOW.md), which also traces each step through the code.
+[WORKFLOW.md](WORKFLOW.md), which also traces each step through the code. The datasets come from
+`bash scripts/download/download_all.sh` (see the guide for sizes).
 
 **Prefer a notebook?** [notebooks/pipeline.ipynb](notebooks/pipeline.ipynb) runs the same pipeline in one
-self-contained, explained Jupyter notebook (see [notebooks/README.md](notebooks/README.md)). The datasets come from
-`bash scripts/download/download_all.sh` (see the guide for sizes).
+self-contained, explained Jupyter notebook (see [notebooks/README.md](notebooks/README.md)).
 
 Spec: `docs/superpowers/specs/` · Plan: `docs/superpowers/plans/` · Decisions: `docs/decisions.md`
