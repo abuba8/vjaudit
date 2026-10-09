@@ -29,19 +29,37 @@ def make_world(tmp_path: Path) -> tuple[Path, Path]:
             path = data / folder / "videos" / f"{name}.mp4"
             if not path.exists():
                 _video(path, n=20)
+    (repo / "notebooks").mkdir()
+    shutil.copy(NOTEBOOK, repo / "notebooks" / "pipeline.ipynb")   # where it lives in a real checkout
     return repo, data
 
 
-def run(repo: Path, params: dict, monkeypatch) -> nbformat.NotebookNode:
+def section_of_each_cell(nb) -> list[int]:
+    out, cur = [], -1
+    for c in nb.cells:
+        m = re.search(r'<a id="s(\d+)"></a>', c.source) if c.cell_type == "markdown" else None
+        cur = int(m.group(1)) if m else cur
+        out.append(cur)
+    return out
+
+
+def run(repo: Path, params: dict, monkeypatch, sections: set | None = None) -> nbformat.NotebookNode:
+    """Execute the notebook in a fresh kernel; with `sections`, only the cells of those sections."""
     monkeypatch.setenv("NOTEBOOK_REPO", str(repo))
     nb = nbformat.read(NOTEBOOK, as_version=4)
     cell = next(c for c in nb.cells if "parameters" in tags(c))
     for k, v in params.items():
         cell.source, n = re.subn(rf"^{k} = .*$", f"{k} = {v!r}", cell.source, flags=re.M)
         assert n == 1, k
+    if sections is not None:
+        nb.cells = [c for c, s in zip(nb.cells, section_of_each_cell(nb)) if s in sections]
     NotebookClient(nb, timeout=180, kernel_name="python3",
-                   resources={"metadata": {"path": str(repo)}}).execute()
+                   resources={"metadata": {"path": str(repo / "notebooks")}}).execute()
     return nb
+
+
+def errors(nb) -> list:
+    return [o for c in nb.cells if c.cell_type == "code" for o in c.get("outputs", []) if o.get("output_type") == "error"]
 
 
 def lines(path: Path) -> list[dict]:
@@ -84,3 +102,19 @@ def test_server_dry_run_end_to_end(tmp_path, monkeypatch):
     assert len(gens) == 9 * 11                      # 11 server systems
     stages = {c["stage"] for c in lines(runs / "judgecalls.jsonl")}
     assert stages == {"S1", "S2", "S5", "S6a", "S6b", "S7"}
+
+
+@pytest.fixture(scope="module")
+def finished_dry_run(tmp_path_factory):
+    repo, data = make_world(tmp_path_factory.mktemp("restart"))
+    params = dict(PROFILE="mac", DRY_RUN=True, DATA_ROOT=str(data), RUN="annotated")
+    with pytest.MonkeyPatch.context() as mp:
+        assert errors(run(repo, params, mp)) == []
+    return repo, params
+
+
+@pytest.mark.parametrize("section", range(4, 12))
+def test_after_a_restart_sections_2_and_3_then_any_section(finished_dry_run, section, monkeypatch):
+    repo, params = finished_dry_run
+    nb = run(repo, params, monkeypatch, sections={2, 3, section})
+    assert [f"{e['ename']}: {e['evalue']}" for e in errors(nb)] == []

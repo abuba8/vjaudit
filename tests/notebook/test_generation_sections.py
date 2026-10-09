@@ -118,7 +118,58 @@ def test_undecodable_video_is_skipped_and_listed(nb_lib, tmp_path):
                 raise nb_lib["FrameDecodeError"]("cannot decode vid0")
             return super().get(video_path, video_id, n)
 
-    nb_lib["run_generation"](store, items, S, frame_cache=Broken())
+    class Seeing(nb_lib["FakeEngine"]):     # a real model needs the frames; the stand-in does not
+        needs_frames = True
+
+    nb_lib["run_generation"](store, items, S, frame_cache=Broken(), engine_factory=lambda g, S: Seeing(g))
     gens = store.load("generations")
     assert not ((gens.item_id == "msvd:test:0") & ~gens.blind).any()
     assert ((gens.item_id == "msvd:test:0") & gens.blind).any()
+
+
+# --- final review: load failures, stand-in models, changed set-ups ----------------------------------------
+def test_a_model_that_fails_to_load_is_skipped_and_reported(nb_lib, tmp_path, capsys):
+    S, items, store = _setup(nb_lib, tmp_path, n=2)
+    bad = S["generators"][0]["id"]
+
+    def factory(gen, S):
+        if gen["id"] == bad:
+            raise OSError("Qwen/x is not a valid model identifier")
+        return nb_lib["FakeEngine"](gen)
+
+    new = nb_lib["run_generation"](store, items, S, frame_cache=Frames(), engine_factory=factory)
+    gens = store.load("generations")
+    assert set(gens.generator_id) == {g["id"] for g in S["generators"]} - {bad} and new == len(gens) > 0
+    out = capsys.readouterr().out
+    assert f"{bad}: could not load" in out and "not a valid model identifier" in out
+
+
+def test_stand_in_model_decodes_no_frames(nb_lib, tmp_path):
+    S, items, store = _setup(nb_lib, tmp_path, n=2)
+
+    class NoFrames:
+        def get(self, *args, **kwargs):
+            raise AssertionError("the dry-run stand-in model should not decode video frames")
+
+    assert nb_lib["run_generation"](store, items, S, frame_cache=NoFrames()) == 2 * 5
+
+
+def test_after_a_setup_change_only_current_answers_are_used(nb_lib, tmp_path):
+    S, items, store = _setup(nb_lib, tmp_path)
+    nb_lib["run_generation"](store, items, S, frame_cache=Frames())
+    changed = {s["system_id"] for s in nb_lib["expand_systems"](S["generators"][0], "msvd")}
+    S["generators"][0]["dtype"] = "bfloat16"            # the troubleshooting fix for garbled answers
+    cov = nb_lib["coverage"](store, items, S)
+    cov = cov[cov.benchmark == "msvd"]
+    assert cov.loc[cov.system.isin(changed), "missing"].eq(4).all()
+    assert cov.loc[~cov.system.isin(changed), "missing"].eq(0).all()
+    assert nb_lib["run_generation"](store, items, S, frame_cache=Frames()) == 4 * len(changed)
+    gens = nb_lib["current_generations"](store, S)
+    assert len(store.load("generations")) == 4 * (5 + len(changed)) and len(gens) == 4 * 5
+    assert gens.groupby("system_id").size().eq(4).all()
+    nb_lib["run_stages"](store, items, S)
+    assert set(store.load("judgecalls").gen_id) == set(gens.gen_id)
+    tables = nb_lib["build_tables"](store, items, "annotated", S["prompts"], gens=gens)
+    for row in tables["msvd"].values():
+        assert row["n"] == 4 and all(v["judged"] == 4 for v in row["configs"].values())
+    assert len(nb_lib["build_units"](items, gens)) <= 4 * 5

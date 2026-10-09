@@ -106,9 +106,12 @@ def _judging_setup(nb_lib, tmp_path, prompts=PROMPTS):
     items = pd.DataFrame([dict(make_item(i, item_id=f"msvd:test:{i}", in_main=True, in_annotated=True).model_dump(),
                                available=True, video_path="", problem="") for i in range(3)])
     store.append("items", items.to_dict("records"), key="item_id")
+    gen = S["generators"][0]
+    systems = {x["system_id"]: x for x in nb_lib["expand_systems"](gen, "msvd")}
     gens = [dict(gen_id=f"g{i}{s}", item_id=f"msvd:test:{i}", benchmark="msvd", system_id=s, generator_id="x",
                  style="short", blind=s.endswith("blind"), output_text=["a dog", "a cat"][i % 2],
-                 answer_norm=["dog", "cat"][i % 2]) for i in range(3) for s in ("qwen25vl3b", "qwen25vl3b-blind")]
+                 answer_norm=["dog", "cat"][i % 2], config_hash=nb_lib["config_hash"](gen, systems[s], S))
+            for i in range(3) for s in ("qwen25vl3b", "qwen25vl3b-blind")]
     store.append("generations", gens, key="gen_id")
     return S, store, items
 
@@ -150,3 +153,22 @@ def test_template_change_gives_new_ids(nb_lib, tmp_path):
     (copy / "judge" / "t_rub.txt").write_text((copy / "judge" / "t_rub.txt").read_text() + "\nBe strict.")
     summary = nb_lib["run_stages"](store, items, S)
     assert summary.loc[0, "done"] == 6 and len(store.load("judgecalls")) == 12
+
+
+def test_api_cache_survives_a_broken_file(nb_lib, tmp_path):
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        return _reply()
+
+    nb_lib["APIJudge"](API_CFG, tmp_path, create=create, sleep=lambda s: None).complete(MSGS, REQ)
+    cache = tmp_path / API_CFG["id"]
+    [entry] = list(cache.glob("*.json"))
+    whole = entry.read_text()
+    (cache / "half-written.json").write_text('{"request": ')
+    entry.write_text(whole[:20])                       # cut off, as if the kernel died mid-write
+    judge = nb_lib["APIJudge"](API_CFG, tmp_path, create=create, sleep=lambda s: None)   # must not crash
+    assert judge.complete(MSGS, REQ)["cached"] is False and len(calls) == 2
+    assert json.loads(entry.read_text()) == json.loads(whole)
+    assert sorted(p.name for p in cache.iterdir()) == sorted([entry.name, "half-written.json"])
