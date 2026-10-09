@@ -8,10 +8,10 @@
 | Runs on | the GPU server (3× A30, vLLM) | the GPU server **and** a 32 GB Apple-Silicon Mac |
 | Judges | GPT-3.5 through the OpenAI API (needs a key) | the same, **or** small local judges (no key, no cost) |
 | Install | uv, Python 3.11 | conda (e.g. `dl`) or uv, Python 3.11–3.13 |
-| CPU tests | 202 | 318 |
+| CPU tests | 202 | 391 |
 
-**Size of the change:** 85 files: 45 added, 37 modified, 3 moved;
-6,004 lines added and 444 removed. This file (`differences.md`) is not counted.
+**Size of the change:** 97 files: 57 added, 37 modified, 3 moved;
+11,220 lines added and 410 removed. This file (`differences.md`) is not counted.
 
 **Data:** v2 does not copy the datasets. Its `configs/local/paths.yaml` points to `../vjaudit/data/`.
 
@@ -43,6 +43,7 @@
 | **Dependencies** | Python 3.11; extra `gpu` | Python 3.11–3.13; `gpu` (vLLM only on Linux) and new `mac` extra |
 | **Download scripts** | call `uv run` | use the active conda environment, otherwise uv; NExT-QA script fix included |
 | **Docs** | `README.md`, `docs/GUIDE.md` | both updated; new `docs/EXPLAINED.md` (the plain-language guide) and `WORKFLOW.md` (workflow through the code, and the commands) |
+| **Notebook** | — | new `notebooks/pipeline.ipynb`: the whole pipeline in one self-contained, explained notebook (no `import vjaudit`), Mac or server by one setting, dry-run mode; its core functions are tested against the package |
 
 ## 2. What did not change
 
@@ -57,18 +58,22 @@
 
 ## 3. File by file
 
-### 3.1 Added (45)
+### 3.1 Added (57)
 
 | File | What it is | Lines |
 |---|---|---|
-| `WORKFLOW.md` | the workflow traced step by step through the code, and the exact commands to run it | +376 / −0 |
+| `WORKFLOW.md` | the workflow traced step by step through the code, and the exact commands to run it | +377 / −0 |
 | `configs/profiles/mac/generators.yaml` | Mac video models: Qwen2.5-VL-3B (short, sentence, blind), Qwen3-VL-2B, LLaVA-OneVision-0.5B; `backend: hf`, 8 frames, `dtype: auto` | +38 / −0 |
 | `configs/profiles/mac/grid.yaml` | Mac samples (main 1,000 / annotated 100 / vid 30 per benchmark), `frame_max_side: 448`, judge stages M1–M6 and optional G1–G2 | +27 / −0 |
 | `configs/profiles/mac/judges.yaml` | local judges Qwen3-4B-Instruct-2507 and Qwen2.5-1.5B-Instruct (`backend: transformers`), plus GPT-3.5 for the optional stages | +29 / −0 |
-| `docs/EXPLAINED.md` | plain-language explanation of the idea and the code, and the step-by-step Mac runbook | +909 / −0 |
+| `docs/EXPLAINED.md` | plain-language explanation of the idea and the code, and the step-by-step Mac runbook | +912 / −0 |
 | `docs/superpowers/plans/2026-10-06-mac-profile-execution-ledger.md` | every decision made while building v2, review fixes and deferred items | +85 / −0 |
 | `docs/superpowers/plans/2026-10-06-mac-profile.md` | implementation plan for v2 | +495 / −0 |
+| `docs/superpowers/plans/2026-10-08-pipeline-notebook.md` | implementation plan for the notebook | +187 / −0 |
 | `docs/superpowers/specs/2026-10-06-mac-profile-design.md` | design spec for v2 | +218 / −0 |
+| `docs/superpowers/specs/2026-10-08-pipeline-notebook-design.md` | design spec for the notebook | +256 / −0 |
+| `notebooks/README.md` | how to open and run the notebook | +16 / −0 |
+| `notebooks/pipeline.ipynb` | the whole pipeline in one self-contained, explained Jupyter notebook (sections 0–12; Mac or server via one setting; dry-run mode) | +2868 / −0 |
 | `src/vjaudit/annotate/__init__.py` | new package: labelling | +1 / −0 |
 | `src/vjaudit/annotate/export.py` | writes `batch_NN.md` files for Claude and `batch_NN.csv` sheets for people, plus `manifest.json` | +128 / −0 |
 | `src/vjaudit/annotate/importer.py` | reads Claude's reply or a filled sheet, validates every row, stores labels only if all rows are valid | +115 / −0 |
@@ -98,11 +103,19 @@
 | `tests/generate/test_hf_engine.py` | tests for the Mac engine (with stand-in models) | +136 / −0 |
 | `tests/judge/test_capture_local.py` | tests for judging with local judges and optional stages | +92 / −0 |
 | `tests/judge/test_local.py` | tests for the local judge (token probabilities, margins, errors, caching) | +199 / −0 |
+| `tests/notebook/__init__.py` | tests for the notebook | +0 / −0 |
+| `tests/notebook/conftest.py` | test helpers: run the notebook's definition cells, or the whole notebook | +37 / −0 |
+| `tests/notebook/test_data_sections.py` | notebook sections 4–6 give the same results as the package (loading, video check, sampling) | +85 / −0 |
+| `tests/notebook/test_execute.py` | runs the whole notebook in dry-run mode on synthetic data, for the Mac and the server profile | +86 / −0 |
+| `tests/notebook/test_generation_sections.py` | notebook sections 7–8: frames, systems, prompts, resumable generation | +124 / −0 |
+| `tests/notebook/test_hygiene.py` | the notebook imports nothing from vjaudit, is saved without outputs, and every section is in its table of contents | +72 / −0 |
+| `tests/notebook/test_judge_section.py` | notebook section 9: templates, parsing, margins, API retries and cache, judge stages | +152 / −0 |
+| `tests/notebook/test_label_report_sections.py` | notebook sections 10–11: units, batch files, label import, metrics, report | +163 / −0 |
 | `tests/report/__init__.py` | tests for the report package | +0 / −0 |
 | `tests/report/test_cli_report.py` | tests for the report package | +14 / −0 |
 | `tests/report/test_metrics.py` | tests for the report package | +25 / −0 |
 | `tests/report/test_summary.py` | tests for the report package | +116 / −0 |
-| `tests/test_docs.py` | checks that README, GUIDE, EXPLAINED and WORKFLOW name only real make targets, commands and file paths | +37 / −0 |
+| `tests/test_docs.py` | checks that README, GUIDE, EXPLAINED, WORKFLOW and the notebook README name only real make targets, commands and file paths | +37 / −0 |
 | `tests/test_mac_real.py` | real-model checks for the Mac (marker `mac`; not part of `make sanity`) | +39 / −0 |
 | `tests/test_profile.py` | profiles and per-profile folders | +86 / −0 |
 | `tests/test_tooling.py` | Makefile and pyproject wiring (profiles, conda/uv rule, Python versions) | +89 / −0 |
@@ -119,12 +132,12 @@
 
 | File | What changed | Lines |
 |---|---|---|
-| `.gitignore` | adds `/annotation/` (exported label batches hold dataset text) | +1 / −0 |
+| `.gitignore` | adds `/annotation/` (exported label batches hold dataset text) and `/notebooks/runs/` (notebook results) | +2 / −0 |
 | `Makefile` | profile selection (`PROFILE=mac`); runs Python from the active conda environment or uv (`RUN`); new targets `pin`, `smoke`, `run1`, `run2`, `judge-run1`, `judge-run2`, `annotate-export`, `annotate-import`, `annotate-status`, `report`; `ALLOW_UNPINNED` / `ALLOW_UNVERIFIED` flags; `make sanity` also skips `mac` tests | +73 / −14 |
-| `README.md` | install with conda (`dl`) or uv; first commands on a Mac; links to `docs/EXPLAINED.md` and `WORKFLOW.md` | +41 / −6 |
+| `README.md` | install with conda (`dl`) or uv; first commands on a Mac; links to `docs/EXPLAINED.md`, `WORKFLOW.md` and the notebook | +44 / −6 |
 | `docs/GUIDE.md` | profiles section, conda install, moved config paths, per-profile report names, new files, moving old results | +110 / −31 |
 | `docs/decisions.md` | dated entry for the Mac set-up | +10 / −0 |
-| `pyproject.toml` | Python 3.11–3.13 (was 3.11 only); new `mac` extra (torch, torchvision, transformers>=4.57, accelerate, huggingface_hub); vLLM only on Linux; pytest marker `mac` | +12 / −3 |
+| `pyproject.toml` | Python 3.11–3.13 (was 3.11 only); new `notebook` extra (jupyterlab, ipykernel, tqdm, matplotlib, ipywidgets) and notebook test tools; new `mac` extra (torch, torchvision, transformers>=4.57, accelerate, huggingface_hub); vLLM only on Linux; pytest marker `mac` | +21 / −4 |
 | `scripts/download/common.sh` | new `run_python` helper: uses the active conda environment, otherwise uv | +10 / −0 |
 | `scripts/download/download_all.sh` | final hint now says `make data-check` | +1 / −1 |
 | `scripts/download/download_nextqa.sh` | repeated `--include` per pattern (the same fix you had made locally in v1, uncommitted) | +1 / −1 |
@@ -155,7 +168,7 @@
 | `tests/scripts/test_download_scripts.py` | updated for the new config paths and per-profile folders, plus new cases | +25 / −0 |
 | `tests/test_config.py` | updated for the new config paths and per-profile folders, plus new cases | +3 / −3 |
 | `tests/test_e2e.py` | updated for the new config paths and per-profile folders, plus new cases | +3 / −3 |
-| `uv.lock` | locks the new dependencies and Python 3.11–3.13 (torch 2.10.0, transformers 4.57.6, vLLM 0.18.1 unchanged) | +835 / −249 |
+| `uv.lock` | locks the new dependencies and Python 3.11–3.13 (torch 2.10.0, transformers 4.57.6, vLLM 0.18.1 unchanged) | +1988 / −214 |
 
 ### 3.4 Removed
 
