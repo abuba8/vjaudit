@@ -11,3 +11,4 @@ configs/local/*.json
 *.egg-info/
 logs/
 /annotation/
+/notebooks/runs/

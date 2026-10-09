@@ -26,6 +26,13 @@ gpu = [
   "transformers>=4.57",
   "huggingface_hub>=0.25",
 ]
+# Running notebooks/pipeline.ipynb in Jupyter: `pip install -e ".[mac,notebook]"` (or ".[gpu,notebook]").
+notebook = [
+  "jupyterlab>=4",
+  "ipykernel>=6.29",
+  "tqdm>=4.66",
+  "matplotlib>=3.8",
+]
 # Apple-Silicon Mac (MPS) or any machine without vLLM: `uv sync --extra mac`. See docs/EXPLAINED.md.
 mac = [
   "torch>=2.5",
@@ -36,7 +43,7 @@ mac = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6.29"]
 
 [build-system]
 requires = ["hatchling"]
