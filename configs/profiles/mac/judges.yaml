@@ -6,7 +6,7 @@ judges:
     kind: open
     backend: transformers
     model: Qwen/Qwen3-4B-Instruct-2507
-    revision: UNPINNED
+    revision: cdbee75f17c01a7cc42f958dc650907174af0554
     max_usd: 0
     price_in_per_mtok: 0
     price_out_per_mtok: 0
@@ -15,7 +15,7 @@ judges:
     kind: open
     backend: transformers
     model: Qwen/Qwen2.5-1.5B-Instruct
-    revision: UNPINNED
+    revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
     max_usd: 0
     price_in_per_mtok: 0
     price_out_per_mtok: 0

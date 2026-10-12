@@ -6,7 +6,7 @@ generators:
   - id: qwen25vl3b
     family: qwen-vl
     hf_repo: Qwen/Qwen2.5-VL-3B-Instruct
-    revision: UNPINNED
+    revision: 66285546d2b821cf421d4f5eb2576359d3770cd3
     backend: hf
     dtype: auto
     n_frames: {default: 8}
@@ -17,7 +17,7 @@ generators:
   - id: qwen3vl2b
     family: qwen-vl
     hf_repo: Qwen/Qwen3-VL-2B-Instruct
-    revision: UNPINNED
+    revision: 89644892e4d85e24eaac8bacfd4f463576704203
     backend: hf
     dtype: auto
     n_frames: {default: 8}
@@ -28,7 +28,7 @@ generators:
   - id: llavaov05b
     family: llava-onevision
     hf_repo: llava-hf/llava-onevision-qwen2-0.5b-ov-hf
-    revision: UNPINNED
+    revision: 74dd0bf867a4cda7950c17663794267c60cf4b40
     backend: hf
     dtype: auto
     n_frames: {default: 8}
